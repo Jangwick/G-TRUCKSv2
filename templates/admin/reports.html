@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - G-TRUCKS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="50">
+                        <h5 class="text-white mt-2">Admin Panel</h5>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                                <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_barangays') }}">
+                                <i class="bi bi-geo-alt me-2"></i> Barangay Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_collectors') }}">
+                                <i class="bi bi-truck me-2"></i> Collector Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_schedules') }}">
+                                <i class="bi bi-calendar-event me-2"></i> Scheduling
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_users') }}">
+                                <i class="bi bi-people me-2"></i> User Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_tracking') }}">
+                                <i class="bi bi-map me-2"></i> Live Tracking
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{{ url_for('admin_reports') }}">
+                                <i class="bi bi-file-earmark-text me-2"></i> Reports
+                            </a>
+                        </li>
+                        <li class="nav-item mt-5">
+                            <a class="nav-link" href="{{ url_for('logout') }}">
+                                <i class="bi bi-box-arrow-right me-2"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">Reports & Analytics</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group me-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="exportPDF">
+                                <i class="bi bi-file-pdf"></i> Export PDF
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="exportCSV">
+                                <i class="bi bi-file-excel"></i> Export CSV
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="printReport">
+                                <i class="bi bi-printer"></i> Print
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Date Range Filter -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Report Filters</h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="reportFilters">
+                            <div class="row align-items-end">
+                                <div class="col-md-3 mb-3">
+                                    <label for="startDate" class="form-label">Start Date</label>
+                                    <input type="date" class="form-control" id="startDate" name="startDate">
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label for="endDate" class="form-label">End Date</label>
+                                    <input type="date" class="form-control" id="endDate" name="endDate">
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label for="reportType" class="form-label">Report Type</label>
+                                    <select class="form-select" id="reportType" name="reportType">
+                                        <option value="all">All Reports</option>
+                                        <option value="collection">Collection Performance</option>
+                                        <option value="efficiency">Collection Efficiency</option>
+                                        <option value="user">User Engagement</option>
+                                        <option value="barangay">Barangay Statistics</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="bi bi-search"></i> Generate Report
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Collection Overview -->
+                    <div class="col-xl-8 col-lg-7">
+                        <div class="card shadow mb-4">
+                            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                <h6 class="m-0 font-weight-bold text-primary">Collection Trends</h6>
+                                <div class="dropdown no-arrow">
+                                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-three-dots-vertical text-gray-400"></i>
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow animated--fade-in" aria-labelledby="dropdownMenuLink">
+                                        <li><h6 class="dropdown-header">View Options</h6></li>
+                                        <li><a class="dropdown-item" href="#">Weekly</a></li>
+                                        <li><a class="dropdown-item" href="#">Monthly</a></li>
+                                        <li><a class="dropdown-item" href="#">Yearly</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="#">Export Chart</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-area">
+                                    <canvas id="collectionTrendsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Collection by Barangay -->
+                    <div class="col-xl-4 col-lg-5">
+                        <div class="card shadow mb-4">
+                            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                <h6 class="m-0 font-weight-bold text-primary">Collections by Barangay</h6>
+                                <div class="dropdown no-arrow">
+                                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-three-dots-vertical text-gray-400"></i>
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow animated--fade-in" aria-labelledby="dropdownMenuLink">
+                                        <li><h6 class="dropdown-header">View Options</h6></li>
+                                        <li><a class="dropdown-item" href="#">By District</a></li>
+                                        <li><a class="dropdown-item" href="#">By Barangay</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="#">Export Chart</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-pie pt-4 pb-2">
+                                    <canvas id="collectionsByBarangayChart"></canvas>
+                                </div>
+                                <div class="mt-4 text-center small">
+                                    <span class="me-2">
+                                        <i class="bi bi-circle-fill text-primary"></i> District 1
+                                    </span>
+                                    <span class="me-2">
+                                        <i class="bi bi-circle-fill text-success"></i> District 2
+                                    </span>
+                                    <span class="me-2">
+                                        <i class="bi bi-circle-fill text-info"></i> District 3
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Collection Efficiency -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow mb-4">
+                            <div class="card-header py-3">
+                                <h6 class="m-0 font-weight-bold text-primary">Collection Efficiency</h6>
+                            </div>
+                            <div class="card-body">
+                                <h4 class="small font-weight-bold">District 1 <span class="float-end">85%</span></h4>
+                                <div class="progress mb-4">
+                                    <div class="progress-bar bg-success" role="progressbar" style="width: 85%" aria-valuenow="85" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <h4 class="small font-weight-bold">District 2 <span class="float-end">70%</span></h4>
+                                <div class="progress mb-4">
+                                    <div class="progress-bar bg-info" role="progressbar" style="width: 70%" aria-valuenow="70" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <h4 class="small font-weight-bold">District 3 <span class="float-end">60%</span></h4>
+                                <div class="progress mb-4">
+                                    <div class="progress-bar" role="progressbar" style="width: 60%" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <h4 class="small font-weight-bold">District 4 <span class="float-end">80%</span></h4>
+                                <div class="progress mb-4">
+                                    <div class="progress-bar bg-success" role="progressbar" style="width: 80%" aria-valuenow="80" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <h4 class="small font-weight-bold">District 5 <span class="float-end">75%</span></h4>
+                                <div class="progress mb-4">
+                                    <div class="progress-bar bg-info" role="progressbar" style="width: 75%" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <h4 class="small font-weight-bold">District 6 <span class="float-end">50%</span></h4>
+                                <div class="progress mb-4">
+                                    <div class="progress-bar bg-warning" role="progressbar" style="width: 50%" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- User Engagement -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="card shadow mb-4">
+                            <div class="card-header py-3">
+                                <h6 class="m-0 font-weight-bold text-primary">User Engagement</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-bar">
+                                    <canvas id="userEngagementChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Collection Details Table -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Collection Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Barangay</th>
+                                        <th>Collector</th>
+                                        <th>Start Time</th>
+                                        <th>End Time</th>
+                                        <th>Duration</th>
+                                        <th>Status</th>
+                                        <th>Efficiency</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>2023-05-01</td>
+                                        <td>Barangay A</td>
+                                        <td>Collector 1</td>
+                                        <td>08:00</td>
+                                        <td>10:30</td>
+                                        <td>2h 30m</td>
+                                        <td><span class="badge bg-success">Completed</span></td>
+                                        <td>95%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2023-05-01</td>
+                                        <td>Barangay B</td>
+                                        <td>Collector 2</td>
+                                        <td>09:15</td>
+                                        <td>11:45</td>
+                                        <td>2h 30m</td>
+                                        <td><span class="badge bg-success">Completed</span></td>
+                                        <td>90%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2023-05-02</td>
+                                        <td>Barangay C</td>
+                                        <td>Collector 3</td>
+                                        <td>08:30</td>
+                                        <td>11:00</td>
+                                        <td>2h 30m</td>
+                                        <td><span class="badge bg-success">Completed</span></td>
+                                        <td>85%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2023-05-02</td>
+                                        <td>Barangay D</td>
+                                        <td>Collector 4</td>
+                                        <td>10:00</td>
+                                        <td>12:15</td>
+                                        <td>2h 15m</td>
+                                        <td><span class="badge bg-success">Completed</span></td>
+                                        <td>80%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>2023-05-03</td>
+                                        <td>Barangay E</td>
+                                        <td>Collector 5</td>
+                                        <td>09:00</td>
+                                        <td>11:30</td>
+                                        <td>2h 30m</td>
+                                        <td><span class="badge bg-warning">Delayed</span></td>
+                                        <td>75%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Collection Trends Chart
+        const collectionTrendsCtx = document.getElementById('collectionTrendsChart').getContext('2d');
+        const collectionTrendsChart = new Chart(collectionTrendsCtx, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
+                datasets: [{
+                    label: 'Scheduled Collections',
+                    data: [65, 59, 80, 81, 56, 55, 40],
+                    backgroundColor: 'rgba(78, 115, 223, 0.05)',
+                    borderColor: 'rgba(78, 115, 223, 1)',
+                    pointBackgroundColor: 'rgba(78, 115, 223, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(78, 115, 223, 1)',
+                    borderWidth: 2,
+                    tension: 0.3
+                }, {
+                    label: 'Completed Collections',
+                    data: [60, 55, 75, 80, 50, 52, 38],
+                    backgroundColor: 'rgba(28, 200, 138, 0.05)',
+                    borderColor: 'rgba(28, 200, 138, 1)',
+                    pointBackgroundColor: 'rgba(28, 200, 138, 1)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgba(28, 200, 138, 1)',
+                    borderWidth: 2,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Collections by Barangay Chart
+        const collectionsByBarangayCtx = document.getElementById('collectionsByBarangayChart').getContext('2d');
+        const collectionsByBarangayChart = new Chart(collectionsByBarangayCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['District 1', 'District 2', 'District 3', 'District 4', 'District 5', 'District 6'],
+                datasets: [{
+                    data: [25, 20, 15, 18, 12, 10],
+                    backgroundColor: [
+                        '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1'
+                    ],
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+
+        // User Engagement Chart
+        const userEngagementCtx = document.getElementById('userEngagementChart').getContext('2d');
+        const userEngagementChart = new Chart(userEngagementCtx, {
+            type: 'bar',
+            data: {
+                labels: ['App Logins', 'Tracking Views', 'Notifications Read', 'Feedback Submitted', 'In-App Time'],
+                datasets: [{
+                    label: 'Engagement Metrics',
+                    data: [420, 385, 290, 120, 195],
+                    backgroundColor: [
+                        'rgba(78, 115, 223, 0.8)',
+                        'rgba(28, 200, 138, 0.8)',
+                        'rgba(54, 185, 204, 0.8)',
+                        'rgba(246, 194, 62, 0.8)',
+                        'rgba(231, 74, 59, 0.8)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Export buttons functionality (demo only)
+        document.getElementById('exportPDF').addEventListener('click', function() {
+            alert('Export to PDF functionality would be implemented here');
+        });
+
+        document.getElementById('exportCSV').addEventListener('click', function() {
+            alert('Export to CSV functionality would be implemented here');
+        });
+
+        document.getElementById('printReport').addEventListener('click', function() {
+            window.print();
+        });
+
+        // Report filters form
+        document.getElementById('reportFilters').addEventListener('submit', function(e) {
+            e.preventDefault();
+            alert('Report generation functionality would be implemented here');
+            
+            // In a real implementation, this would fetch data from the server
+            // and update the charts and tables based on the selected filters
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Tracking - G-TRUCKS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        /* Custom styling for truck tracking */
+        .truck-item {
+            transition: all 0.3s ease;
+            border-radius: 0.5rem !important;
+            margin-bottom: 0.75rem !important;
+            background: linear-gradient(to right, rgba(255,255,255,0.95), rgba(255,255,255,1));
+        }
+        
+        .truck-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1) !important;
+            background: linear-gradient(to right, rgba(248,249,250,0.9), rgba(255,255,255,1));
+        }
+        
+        .truck-item.nearby {
+            border-left-color: #dc3545 !important;
+            background: linear-gradient(to right, rgba(255,245,245,0.9), rgba(255,255,255,1));
+        }
+        
+        .truck-item.approaching {
+            border-left-color: #ffc107 !important;
+            background: linear-gradient(to right, rgba(255,252,235,0.9), rgba(255,255,255,1));
+        }
+        
+        /* Animated pulse effect for active trucks */
+        .pulse-animation {
+            box-shadow: 0 0 0 rgba(40, 167, 69, 0.4);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+            }
+        }
+        
+        /* Current location animation */
+        .blinking-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #28a745;
+            margin-right: 5px;
+            animation: blink 1.5s ease infinite;
+        }
+        
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+        
+        /* Bootstrap improvements */
+        .card {
+            border: none !important;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+            transition: all 0.3s !important;
+            overflow: hidden;
+            border-radius: 1rem !important;
+        }
+        
+        .card-header {
+            background: linear-gradient(to right, #f8f9fa, white) !important;
+            border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+            padding: 1rem 1.5rem !important;
+        }
+        
+        .card-body {
+            padding: 1.5rem !important;
+        }
+        
+        .btn {
+            border-radius: 0.5rem !important;
+            font-weight: 500 !important;
+            padding: 0.5rem 1rem !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .btn-outline-success {
+            border-width: 1.5px !important;
+        }
+        
+        .btn-outline-info {
+            border-width: 1.5px !important;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+        }
+        
+        .badge {
+            padding: 0.5em 0.75em !important;
+            font-weight: 500 !important;
+            letter-spacing: 0.03em;
+        }
+        
+        /* Progress bar with gradient */
+        .progress {
+            border-radius: 1rem !important;
+            height: 0.6rem !important;
+            overflow: hidden;
+            background-color: #e9ecef;
+        }
+        
+        .progress-bar {
+            background: linear-gradient(to right, #20c997, #0d6efd) !important;
+            transition: width 1.5s ease !important;
+        }
+        
+        /* Map styling */
+        #map {
+            border-radius: 1rem !important;
+            box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1) !important;
+            border: 3px solid #f8f9fa !important;
+            overflow: hidden;
+        }
+        
+        /* Custom container for truck info */
+        .truck-info {
+            max-height: 350px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #6c757d #f8f9fa;
+        }
+        
+        /* Custom styling for status indicators */
+        .status-badge {
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            border-radius: 1rem !important;
+            padding: 0.35em 0.8em !important;
+            letter-spacing: 0.05em;
+        }
+        
+        /* Ribbon style for special alerts */
+        .ribbon {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 150px;
+            height: 22px;
+            margin-right: -50px;
+            margin-top: 15px;
+            transform: rotate(45deg);
+            background-color: #0dcaf0;
+            color: white;
+            font-size: 0.7rem;
+            text-align: center;
+            line-height: 22px;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Enhanced truck list style */
+        .truck-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        
+        .truck-list li {
+            padding: 1rem;
+        }
+        
+        /* Add glassmorphism effect to map controls */
+        .glassmorphic {
+            backdrop-filter: blur(10px);
+            background-color: rgba(255, 255, 255, 0.6);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Toast styling */
+        .toast {
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            border-radius: 1rem !important;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1) !important;
+            border: none !important;
+            backdrop-filter: blur(10px);
+        }
+        
+        .toast-header {
+            border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+        }
+        
+        /* Custom map controls */
+        .custom-map-control {
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        /* Responsive improvements */
+        @media (max-width: 768px) {
+            .truck-item {
+                flex-direction: column;
+            }
+            
+            .truck-item .d-flex {
+                margin-top: 0.5rem;
+                width: 100%;
+            }
+            
+            .truck-item .btn-group {
+                width: 100%;
+            }
+            
+            .truck-item .btn {
+                flex: 1;
+            }
+            
+            #map {
+                height: 350px !important;
+            }
+        }
+        
+        /* Additional styling for better UX */
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #f8fafc;
+        }
+        
+        .main-content {
+            flex: 1;
+            padding: 2rem 0;
+        }
+        
+        .map-container {
+            position: relative;
+            height: 500px;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border: 3px solid #fff;
+        }
+        
+        .map-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .map-controls .btn {
+            backdrop-filter: blur(10px);
+            background-color: rgba(255, 255, 255, 0.8);
+            border: none;
+            padding: 10px 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1000;
+            padding: 5px 10px;
+            border-radius: 20px;
+            background-color: rgba(255, 255, 255, 0.85);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .live-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #dc3545;
+            animation: blink 1.5s infinite;
+        }
+        
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+            margin-top: 20px;
+            border-left: 2px solid #e9ecef;
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -39px;
+            top: 0px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: #0d6efd;
+            border: 3px solid #fff;
+            box-shadow: 0 0 0 2px #0d6efd;
+        }
+        
+        .timeline-item.active::before {
+            background-color: #20c997;
+        }
+        
+        .timeline-item.completed::before {
+            background-color: #6c757d;
+        }
+        
+        .truck-info {
+            border-radius: 1rem !important;
+            max-height: 350px;
+            overflow-y: auto;
+            padding: 1rem !important;
+            scrollbar-width: thin;
+            scrollbar-color: #6c757d #f8f9fa;
+            background-color: #fff;
+        }
+        
+        .truck-info::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .truck-info::-webkit-scrollbar-track {
+            background: #f8f9fa;
+        }
+        
+        .truck-info::-webkit-scrollbar-thumb {
+            background-color: #6c757d;
+            border-radius: 6px;
+        }
+        
+        .arrival-time {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #0d6efd;
+            display: block;
+            margin-top: 5px;
+        }
+        
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #333;
+            position: relative;
+            padding-left: 15px;
+        }
+        
+        .section-title::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 5px;
+            background-color: #0d6efd;
+            border-radius: 5px;
+        }
+        
+        .footer {
+            margin-top: auto;
+        }
+        
+        /* Toast notification styling */
+        .custom-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 15px 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 9999;
+            transform: translateX(120%);
+            transition: transform 0.3s ease;
+        }
+        
+        .custom-toast.show {
+            transform: translateX(0);
+        }
+        
+        .toast-icon {
+            font-size: 1.5rem;
+            color: #20c997;
+        }
+        
+        /* Add styles for the new directions panel */
+        .directions-panel {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 1000;
+            background-color: white;
+            display: none;
+        }
+        
+        .directions-list {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        
+        .directions-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        
+        .directions-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f8f9fa;
+            border-radius: 50%;
+        }
+        
+        .custom-route-marker {
+            text-align: center;
+        }
+        
+        .route-marker-destination {
+            background-color: #e74c3c;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 0 2px white, 0 0 10px rgba(0,0,0,0.3);
+        }
+        
+        .route-marker-start {
+            background-color: #2ecc71;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 0 2px white, 0 0 10px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('user_dashboard') }}">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="40">
+                G-TRUCKS
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user_dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('user_tracking') }}">Live Tracking</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user_dashboard') }}">Collection Schedule</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle me-1"></i> {{ current_user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('user_profile') }}">Profile</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('user_notifications') }}">Notifications</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <div class="container">
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <h1 class="h3 mb-0">Live Truck Tracking</h1>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enableNotifications" checked>
+                            <label class="form-check-label" for="enableNotifications">Notifications</label>
+                        </div>
+                    </div>
+                    <p class="text-muted mb-4">Track waste collection trucks in real-time as they service your area.</p>
+                </div>
+            </div>
+            
+            <div class="row g-4">
+                <div class="col-lg-8">
+                    <div class="card shadow-sm h-100 border-0 rounded-4">
+                        <div class="card-header bg-white py-3">
+                            <h5 class="card-title mb-0 d-flex align-items-center">
+                                <i class="bi bi-map me-2 text-success"></i>
+                                Live Location Map
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="map-container">
+                                <div id="map" style="height: 100%; width: 100%;"></div>
+                                <div class="map-controls">
+                                    <button id="refresh-map" class="btn btn-light" title="Refresh map">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
+                                    <button id="locate-me" class="btn btn-light" title="Locate me">
+                                        <i class="bi bi-geo-alt"></i>
+                                    </button>
+                                    <button id="fit-bounds" class="btn btn-light" title="View all trucks">
+                                        <i class="bi bi-truck"></i>
+                                    </button>
+                                </div>
+                                <div class="live-indicator">
+                                    <span class="live-dot"></span>
+                                    <span>LIVE</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="card shadow-sm h-100 border-0 rounded-4">
+                        <div class="card-header bg-white py-3">
+                            <h5 class="card-title mb-0 d-flex align-items-center">
+                                <i class="bi bi-truck me-2 text-success"></i>
+                                Active Collection Trucks
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="truck-info">
+                                {% if collectors %}
+                                    <ul class="list-group list-group-flush truck-list">
+                                        {% for collector in collectors %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center truck-item border-start border-4 border-success rounded-3 shadow-sm mb-3 mx-0 position-relative" data-id="{{ collector.id }}">
+                                            <div class="ms-2">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="collector-icon bg-success bg-opacity-10 p-2 rounded-circle me-3">
+                                                        <i class="bi bi-truck text-success fs-4"></i>
+                                                    </div>
+                                                    <div>
+                                                        <h6 class="mb-0 fw-bold d-flex align-items-center">
+                                                            {{ collector.vehicle_id }} 
+                                                            <span class="badge bg-success status-badge rounded-pill ms-2">Active</span>
+                                                        </h6>
+                                                        <small class="text-muted d-flex align-items-center mt-1">
+                                                            <i class="bi bi-clock me-1"></i>
+                                                            {% if collector.last_updated %}
+                                                            Last updated: {{ collector.last_updated.strftime('%H:%M') }}
+                                                            <span class="distance-info ms-2 badge bg-light text-dark rounded-pill"></span>
+                                                            {% else %}
+                                                            Status unavailable
+                                                            {% endif %}
+                                                        </small>
+                                                        <div class="eta-info small text-primary mt-1 fw-bold">
+                                                            <i class="bi bi-hourglass-split me-1"></i>
+                                                            <span>Calculating ETA...</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex">
+                                                <div class="btn-group shadow-sm">
+                                                    <button class="btn btn-sm btn-outline-info route-btn" data-id="{{ collector.id }}" data-bs-toggle="tooltip" title="Show route">
+                                                        <i class="bi bi-map"></i> Route
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-success track-btn" data-id="{{ collector.id }}" data-bs-toggle="tooltip" title="Track this truck">
+                                                        <i class="bi bi-geo-alt"></i> Track
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <!-- Progress indicator dot -->
+                                            <span class="position-absolute top-0 end-0 translate-middle p-2 bg-success border border-light rounded-circle pulse-animation">
+                                                <span class="visually-hidden">Active truck</span>
+                                            </span>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <div class="text-center py-5">
+                                        <div class="empty-state mb-3">
+                                            <i class="bi bi-truck text-muted fs-1 mb-3 opacity-50 d-block"></i>
+                                            <div class="bg-light p-4 rounded-4 shadow-sm mx-auto" style="max-width: 300px;">
+                                                <p class="mt-2 text-muted fw-light fs-5 mb-2">No active collection trucks in your barangay at the moment.</p>
+                                                <button class="btn btn-outline-secondary mt-2 refresh-status-btn">
+                                                    <i class="bi bi-arrow-clockwise me-1"></i> Check again
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card shadow-sm mb-4 border-0 rounded-4">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0 d-flex align-items-center">
+                                <i class="bi bi-bar-chart-steps me-2 text-primary"></i>
+                                Collection Status
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <span class="fw-medium">Collection progress</span>
+                                    <span class="fw-bold">65%</                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" style="width: 65%"></div>
+                                </div>
+                                <small class="text-muted d-block mt-1">Your area is currently being serviced</small>
+                            </div>
+                            
+                            <div class="timeline">
+                                <div class="timeline-item completed">
+                                    <h6 class="fw-bold mb-1">Collection started</h6>
+                                    <p class="small text-muted mb-0">8:00 AM</p>
+                                </div>
+                                <div class="timeline-item active">
+                                    <h6 class="fw-bold mb-1">Now collecting</h6>
+                                    <p class="small text-muted mb-0">Main Street area</p>
+                                </div>
+                                <div class="timeline-item">
+                                    <h6 class="fw-bold mb-1">Estimated arrival at your location</h6>
+                                    <p class="small text-muted mb-0">Within 
+                                        <span class="arrival-time">20 minutes</span>
+                                    </p>
+                                </div>
+                                <div class="timeline-item">
+                                    <h6 class="fw-bold mb-1">Collection complete</h6>
+                                    <p class="small text-muted mb-0">Estimated by 11:30 AM</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card shadow-sm mb-4 border-0 rounded-4">
+                        <div class="card-header bg-white py-3">
+                            <h5 class="card-title mb-0 d-flex align-items-center">
+                                <i class="bi bi-calendar3 me-2 text-primary"></i>
+                                Today's Schedule
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-group list-group-flush rounded-3">
+                                <li class="list-group-item px-0 border-0">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="fw-medium">Collection Time:</span>
+                                        <span class="fw-bold">9:00 AM - 11:00 AM</span>
+                                    </div>
+                                </li>
+                                <li class="list-group-item px-0 border-0">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="fw-medium">Collection Type:</span>
+                                        <span class="fw-bold">Regular Waste</span>
+                                    </div>
+                                </li>
+                                <li class="list-group-item px-0 border-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-medium">Status:</span>
+                                        <span class="badge bg-warning">In Progress</span>
+                                    </div>
+                                </li>
+                                <li class="list-group-item px-0 border-0">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="fw-medium">Current Location:</span>
+                                        <span class="text-success fw-medium" id="current-location">
+                                            <i class="bi bi-geo-fill me-1"></i>
+                                            Approaching via Main Street
+                                        </span>
+                                    </div>
+                                </li>
+                            </ul>
+                            
+                            <div class="alert alert-info rounded-3 mt-3">
+                                <div class="d-flex">
+                                    <i class="bi bi-info-circle fs-4 me-2"></i>
+                                    <div>
+                                        <h6 class="fw-bold mb-1">Waste Collection Tips</h6>
+                                        <p class="small mb-0">Please ensure waste is properly sorted and ready for collection to help our collectors serve you efficiently.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer bg-dark text-white py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>G-TRUCKS</h5>
+                    <p>Smart waste collection for a cleaner community.</p>
+                </div>
+                <div class="col-md-3">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="{{ url_for('user_dashboard') }}" class="text-white">Dashboard</a></li>
+                        <li><a href="{{ url_for('user_tracking') }}" class="text-white">Live Tracking</a></li>
+                        <li><a href="{{ url_for('user_profile') }}" class="text-white">Profile</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h5>Connect</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-white">Help Center</a></li>
+                        <li><a href="#" class="text-white">Contact Support</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr>
+            <div class="text-center">
+                <p>&copy; 2023 G-TRUCKS. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Custom Toast Notification -->
+    <div class="custom-toast" id="customToast">
+        <div class="toast-icon">
+            <i class="bi bi-check-circle-fill"></i>
+        </div>
+        <div class="toast-content">
+            <strong class="toast-title">Success!</strong>
+            <div class="toast-message">Your notification message here.</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // Initialize map and functionality
+        const map = L.map('map', {
+            zoomControl: false, // We'll use custom controls
+            attributionControl: true,
+        }).setView([14.676, 121.043], 14);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Add custom zoom control
+        L.control.zoom({
+            position: 'bottomright'
+        }).addTo(map);
+
+        // Initialize tooltips
+        document.addEventListener('DOMContentLoaded', function() {
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+        });
+
+        // Improved toast notifications
+        function showToast(message, title = 'Notification') {
+            const toast = document.getElementById('customToast');
+            toast.querySelector('.toast-title').textContent = title;
+            toast.querySelector('.toast-message').textContent = message;
+            
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 5000);
+        }
+
+        // The rest of your existing map functionality
+        const homeIcon = L.icon({
+            iconUrl: '/static/img/home-icon.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+            popupAnchor: [0, -32]
+        });
+
+        let userLocation = [14.676, 121.043]; // Default location
+        const homeMarker = L.marker(userLocation, {icon: homeIcon}).addTo(map);
+        homeMarker.bindPopup("<strong>Your Location</strong><br>{{ current_user.barangay.name }}");
+
+        // Store markers and routes for trucks
+        const truckMarkers = {};
+        const truckRoutes = {};
+        const notificationThreshold = 1000; // meters
+        let notificationsEnabled = document.getElementById('enableNotifications').checked;
+
+        document.getElementById('enableNotifications').addEventListener('change', function() {
+            notificationsEnabled = this.checked;
+            if (notificationsEnabled) {
+                showToast('Proximity notifications enabled');
+            } else {
+                showToast('Proximity notifications disabled');
+            }
+        });
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // meters
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c; // in meters
+        }
+
+        function formatDistance(distance) {
+            if (distance < 1000) {
+                return Math.round(distance) + ' m';
+            } else {
+                return (distance / 1000).toFixed(1) + ' km';
+            }
+        }
+
+        function calculateETA(distance, speed = 20) { // speed in km/h
+            const timeInHours = distance / 1000 / speed;
+            const timeInMinutes = timeInHours * 60;
+               
+            if (timeInMinutes < 1) {
+                return 'Arriving now';
+            } else if (timeInMinutes < 60) {
+                return `ETA: ~${Math.round(timeInMinutes)} mins`;
+            } else {
+                const hours = Math.floor(timeInMinutes / 60); 
+                const minutes = Math.round(timeInMinutes % 60);
+                return `ETA: ~${hours}h ${minutes}m`;
+            }
+        }
+
+        // Connect to Socket.io for real-time updates
+        const socket = io();
+        socket.on('connect', () => {
+            console.log('Connected to real-time tracking server');
+        });
+
+        socket.on('location_update', (data) => {
+            // Check if the collector is in user's barangay
+            if (data.barangay_id === {{ current_user.barangay_id }}) {
+                updateCollectorOnMap(data);
+            }
+        });
+
+        // Function to update map with truck locations
+        function updateCollectorOnMap(collector) {
+            if (!collector.lat || !collector.lng) return;
+            
+            const truckIcon = L.icon({
+                iconUrl: '/static/img/truck-icon.png',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
+
+            // Calculate distance from user
+            const distance = calculateDistance(
+                userLocation[0], userLocation[1], 
+                collector.lat, collector.lng
+            );
+
+            // Check for proximity alert
+            if (notificationsEnabled && distance < notificationThreshold) {
+                showToast(`Truck ${collector.vehicle_id} is approaching your location (${formatDistance(distance)} away)`);
+                
+                // Request permission for browser notifications
+                if (Notification.permission === "granted") {
+                    new Notification("G-TRUCKS Collection Alert", {
+                        body: `Collection truck ${collector.vehicle_id} is approaching your location.`,
+                        icon: "/static/img/logo.png"
+                    });
+                } else if (Notification.permission !== "denied") {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === "granted") {
+                            new Notification("G-TRUCKS Collection Alert", {
+                                body: `Collection truck ${collector.vehicle_id} is approaching your location.`,
+                                icon: "/static/img/logo.png"
+                            });
+                        }
+                    });
+                }
+            }
+            
+            // Update distance info in UI
+            const listItem = document.querySelector(`.truck-item[data-id="${collector.id}"]`);
+            if (listItem) {
+                const distanceInfo = listItem.querySelector('.distance-info');
+                if (distanceInfo) {
+                    distanceInfo.textContent = ` • ${formatDistance(distance)} away`;
+                }
+                
+                const etaInfo = listItem.querySelector('.eta-info');
+                if (etaInfo) {
+                    etaInfo.textContent = calculateETA(distance);
+                }
+                
+                // Update status badge based on distance
+                const statusBadge = listItem.querySelector('.status-badge');
+                if (statusBadge) {
+                    if (distance < 500) {
+                        statusBadge.className = 'badge bg-danger status-badge';
+                        statusBadge.textContent = 'Nearby';
+                    } else if (distance < 2000) {
+                        statusBadge.className = 'badge bg-warning status-badge';
+                        statusBadge.textContent = 'Approaching';
+                    } else {
+                        statusBadge.className = 'badge bg-success status-badge';
+                        statusBadge.textContent = 'Active';
+                    }
+                }
+            }
+            
+            // Update location name
+            document.getElementById('current-location').textContent = collector.location_name || 
+                "Approaching " + formatDistance(distance) + " from your location";
+
+            if (truckMarkers[collector.id]) {
+                // Update existing marker
+                truckMarkers[collector.id].setLatLng([collector.lat, collector.lng]);
+                
+                // Create movement animation
+                truckMarkers[collector.id].setOpacity(0.5);
+                setTimeout(() => {
+                    truckMarkers[collector.id].setOpacity(1.0);
+                }, 300);
+                
+                truckMarkers[collector.id].bindPopup(`
+                    <strong>${collector.name || 'Collector'}</strong><br>
+                    Vehicle: ${collector.vehicle_id}<br>
+                    Distance: ${formatDistance(distance)}<br>
+                    Last Updated: ${collector.last_updated || new Date().toLocaleTimeString()}
+                `);
+            } else {
+                // Create new marker
+                truckMarkers[collector.id] = L.marker([collector.lat, collector.lng], {
+                    icon: truckIcon,
+                    zIndexOffset: 1000
+                }).addTo(map);
+                
+                truckMarkers[collector.id].bindPopup(`
+                    <strong>${collector.name || 'Collector'}</strong><br>
+                    Vehicle: ${collector.vehicle_id}<br>
+                    Distance: ${formatDistance(distance)}<br>
+                    Last Updated: ${collector.last_updated || new Date().toLocaleTimeString()}
+                `);
+                
+                // Pulse animation for new markers
+                truckMarkers[collector.id].setOpacity(0);
+                setTimeout(() => {
+                    truckMarkers[collector.id].setOpacity(1.0);
+                }, 300);
+            }
+        }
+
+        // Function to show the route between collector and user
+        function showRoute(collectorId) {
+            // Remove existing route if any
+            if (truckRoutes[collectorId]) {
+                map.removeControl(truckRoutes[collectorId]);
+                delete truckRoutes[collectorId];
+            }
+
+            if (truckMarkers[collectorId]) {
+                const collectorPos = truckMarkers[collectorId].getLatLng();
+                
+                // Create a route with enhanced options
+                const routing = L.Routing.control({
+                    waypoints: [
+                        L.latLng(userLocation[0], userLocation[1]), // Start from user location
+                        L.latLng(collectorPos.lat, collectorPos.lng) // End at collector's location
+                    ],
+                    routeWhileDragging: false,
+                    showAlternatives: true, // Show alternative routes
+                    fitSelectedRoutes: true,
+                    useZoomParameter: true,
+                    lineOptions: {
+                        styles: [
+                            {color: '#2c3e50', opacity: 0.15, weight: 9},
+                            {color: '#3498db', opacity: 0.8, weight: 6},
+                            {color: 'white', opacity: 0.8, weight: 4}
+                        ],
+                        extendToWaypoints: true,
+                        missingRouteTolerance: 100
+                    },
+                    altLineOptions: {
+                        styles: [
+                            {color: '#2c3e50', opacity: 0.15, weight: 7},
+                            {color: '#9b59b6', opacity: 0.6, weight: 4},
+                            {color: 'white', opacity: 0.5, weight: 2}
+                        ],
+                        extendToWaypoints: true,
+                        missingRouteTolerance: 100
+                    },
+                    createMarker: function(i, waypoint, n) {
+                        // Only create markers for the collector, not for the user
+                        if (i === n - 1) {
+                            const marker = L.marker(waypoint.latLng, {
+                                icon: L.divIcon({
+                                    className: 'custom-route-marker',
+                                    html: '<div class="route-marker-destination"><i class="bi bi-truck-fill"></i></div>',
+                                    iconSize: [30, 30],
+                                    iconAnchor: [15, 30]
+                                })
+                            });
+                            return marker;
+                        } else if (i === 0) {
+                            // Start point
+                            const marker = L.marker(waypoint.latLng, {
+                                icon: L.divIcon({
+                                    className: 'custom-route-marker',
+                                    html: '<div class="route-marker-start"><i class="bi bi-house-fill"></i></div>',
+                                    iconSize: [24, 24],
+                                    iconAnchor: [12, 24]
+                                })
+                            });
+                            return marker;
+                        }
+                        return null;
+                    },
+                    router: new L.Routing.OSRMv1({
+                        serviceUrl: 'https://router.project-osrm.org/route/v1',
+                        profile: 'driving', // Use 'driving', 'walking', or 'cycling'
+                        timeout: 30000, // ms
+                        suppressDemoServerWarning: true
+                    })
+                }).addTo(map);
+                
+                // Add event listeners to respond to routing events
+                routing.on('routesfound', function(e) {
+                    const routes = e.routes;
+                    const summary = routes[0].summary;
+                    const distance = formatDistance(summary.totalDistance);
+                    const time = formatTime(summary.totalTime);
+                    
+                    // Update the pathfinding information in the UI
+                    const listItem = document.querySelector(`.truck-item[data-id="${collectorId}"]`);
+                    if (listItem) {
+                        const etaInfo = listItem.querySelector('.eta-info');
+                        if (etaInfo) {
+                            etaInfo.innerHTML = `<i class="bi bi-signpost-split-fill me-1"></i> Distance: ${distance}, ETA: ${time}`;
+                        }
+                    }
+                    
+                    // Add turn instructions to the route
+                    showDirections(routes[0].instructions);
+                    
+                    // Show a success toast
+                    showToast(`Route to truck ${collectorId} found. Distance: ${distance}, ETA: ${time}`, 'Route Found');
+                });
+                
+                // Handle route error
+                routing.on('routingerror', function(e) {
+                    console.error('Routing error:', e.error);
+                    showToast('Could not find a route to the truck. Please try again.', 'Routing Error');
+                });
+                
+                truckRoutes[collectorId] = routing;
+            }
+        }
+        
+        // Format time for display (converts seconds to minutes/hours format)
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            
+            if (minutes < 1) {
+                return 'Less than 1 min';
+            } else if (minutes < 60) {
+                return `${minutes} min${minutes === 1 ? '' : 's'}`;
+            } else {
+                const hours = Math.floor(minutes / 60);
+                const remainingMinutes = minutes % 60;
+                if (remainingMinutes === 0) {
+                    return `${hours} hour${hours === 1 ? '' : 's'}`;
+                } else {
+                    return `${hours} hr ${remainingMinutes} min`;
+                }
+            }
+        }
+        
+        // Show turn-by-turn directions
+        function showDirections(instructions) {
+            // Create a directions panel if it doesn't exist
+            let directionsPanel = document.getElementById('directions-panel');
+            if (!directionsPanel) {
+                directionsPanel = document.createElement('div');
+                directionsPanel.id = 'directions-panel';
+                directionsPanel.className = 'directions-panel card shadow-sm border-0 rounded-3';
+                directionsPanel.innerHTML = `
+                    <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="bi bi-signpost me-2"></i>Directions</h6>
+                        <button type="button" class="btn-close" aria-label="Close" onclick="closeDirections()"></button>
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush directions-list"></ul>
+                    </div>
+                `;
+                document.querySelector('.map-container').appendChild(directionsPanel);
+            }
+            
+            // Clear previous directions
+            const directionsList = directionsPanel.querySelector('.directions-list');
+            directionsList.innerHTML = '';
+            
+            // Add directions
+            instructions.forEach((instruction, index) => {
+                if (index === 0) return; // Skip the first instruction (it's usually "head north/south/etc.")
+                
+                const li = document.createElement('li');
+                li.className = 'list-group-item directions-item';
+                
+                // Get appropriate icon based on direction type
+                let icon = 'arrow-right';
+                if (instruction.type === 'DestinationReached') icon = 'geo-alt-fill';
+                else if (instruction.type === 'TurnLeft') icon = 'arrow-left';
+                else if (instruction.type === 'TurnRight') icon = 'arrow-right';
+                else if (instruction.type === 'TurnSharpLeft') icon = 'arrow-90deg-left';
+                else if (instruction.type === 'TurnSharpRight') icon = 'arrow-90deg-right';
+                else if (instruction.type === 'TurnSlightLeft') icon = 'arrow-up-left';
+                else if (instruction.type === 'TurnSlightRight') icon = 'arrow-up-right';
+                else if (instruction.type.includes('Roundabout')) icon = 'arrow-repeat';
+                
+                li.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <span class="directions-icon me-3">
+                            <i class="bi bi-${icon}"></i>
+                        </span>
+                        <div>
+                            <p class="mb-0">${instruction.text}</p>
+                            <small class="text-muted">${formatDistance(instruction.distance)}</small>
+                        </div>
+                    </div>
+                `;
+                
+                directionsList.appendChild(li);
+            });
+            
+            // Show the directions panel
+            directionsPanel.style.display = 'block';
+        }
+        
+        // Close directions panel
+        function closeDirections() {
+            const directionsPanel = document.getElementById('directions-panel');
+            if (directionsPanel) {
+                directionsPanel.style.display = 'none';
+            }
+        }
+        
+        // Track button functionality
+        document.querySelectorAll('.track-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const collectorId = this.getAttribute('data-id');
+                fetch(`/api/collectors-location?id=${collectorId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.length > 0) {
+                            const collector = data[0];
+                            map.setView([collector.lat, collector.lng], 16);
+                            if (truckMarkers[collector.id]) {
+                                truckMarkers[collector.id].openPopup();
+                                
+                                // After tracking the truck, show the route as well for better navigation
+                                showRoute(collector.id);
+                            }
+                        }
+                    })
+                    .catch(error => console.error('Error tracking collector:', error));
+            });
+        });
+
+        // Function to update map with truck locations
+        function updateMap() {
+            fetch('/api/collectors-location')
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(collector => {
+                        // Only display collectors assigned to user's barangay
+                        if (collector.barangay_id === {{ current_user.barangay_id }}) {
+                            updateCollectorOnMap(collector);
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching collector locations:', error));
+        }
+
+        // Initial map update
+        updateMap();
+        
+        // Refresh every 30 seconds but only if socket.io is disconnected
+        setInterval(() => {
+            if (!socket.connected) {
+                updateMap();
+            }
+        }, 30000);
+        
+        // Manual refresh
+        document.getElementById('refresh-map').addEventListener('click', updateMap);
+        
+        // Locate me button
+        document.getElementById('locate-me').addEventListener('click', function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const userLat = position.coords.latitude;
+                    const userLng = position.coords.longitude;
+                    
+                    userLocation = [userLat, userLng];
+                    map.setView(userLocation, 16);
+                    homeMarker.setLatLng(userLocation);
+                    homeMarker.openPopup();
+                    
+                    // Update distances after location change
+                    Object.keys(truckMarkers).forEach(id => {
+                        const marker = truckMarkers[id];
+                        const collectorPos = marker.getLatLng();
+                        const collector = {
+                            id: id,
+                            lat: collectorPos.lat,
+                            lng: collectorPos.lng,
+                            barangay_id: {{ current_user.barangay_id }},
+                            vehicle_id: `Vehicle ${id}`
+                        };
+                        updateCollectorOnMap(collector);
+                    });
+                }, error => {
+                    console.error('Error getting location:', error);
+                    alert('Unable to get your location. Please check your location settings.');
+                });
+            } else {
+                alert('Geolocation is not supported by your browser.');
+            }
+        });
+        
+        // Request notification permission on page load
+        if ("Notification" in window) {
+            if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+                Notification.requestPermission();
+            }
+        }
+
+        // New feature: Fit all trucks in view
+        document.getElementById('fit-bounds').addEventListener('click', function() {
+            if (Object.keys(truckMarkers).length > 0) {
+                const bounds = [];
+                Object.values(truckMarkers).forEach(marker => {
+                    bounds.push(marker.getLatLng());
+                });
+                
+                // Add user location to bounds
+                bounds.push(userLocation);
+                
+                // Create a bounds object and fit the map to it
+                map.fitBounds(L.latLngBounds(bounds), {
+                    padding: [50, 50],
+                    maxZoom: 15,
+                    animate: true
+                });
+                
+                showToast('Showing all active collectors on the map.');
+            } else {
+                showToast('No active collectors to display.', 'Information');
+            }
+        });
+
+        // Add a refresh status button functionality
+        document.querySelector('.refresh-status-btn')?.addEventListener('click', function() {
+            updateMap();
+            showToast('Checking for active collectors...', 'Refreshing');
+        });
+    </script>
+</body>
+</html>

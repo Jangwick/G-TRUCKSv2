@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Tracking - G-TRUCKS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="50">
+                        <h5 class="text-white mt-2">Admin Panel</h5>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                                <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_barangays') }}">
+                                <i class="bi bi-geo-alt me-2"></i> Barangay Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_collectors') }}">
+                                <i class="bi bi-truck me-2"></i> Collector Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_schedules') }}">
+                                <i class="bi bi-calendar-event me-2"></i> Scheduling
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_users') }}">
+                                <i class="bi bi-people me-2"></i> User Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{{ url_for('admin_tracking') }}">
+                                <i class="bi bi-map me-2"></i> Live Tracking
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_reports') }}">
+                                <i class="bi bi-file-earmark-text me-2"></i> Reports
+                            </a>
+                        </li>
+                        <li class="nav-item mt-5">
+                            <a class="nav-link" href="{{ url_for('logout') }}">
+                                <i class="bi bi-box-arrow-right me-2"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">Live Tracking</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group me-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary refresh-btn">
+                                <i class="bi bi-arrow-repeat"></i> Refresh
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#filterModal">
+                                <i class="bi bi-funnel"></i> Filter
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="card shadow">
+                            <div class="card-body">
+                                <div id="map"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card shadow">
+                            <div class="card-header py-3">
+                                <h6 class="m-0 font-weight-bold text-primary">Active Collectors</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-hover" width="100%" cellspacing="0">
+                                        <thead>
+                                            <tr>
+                                                <th>Collector ID</th>
+                                                <th>Name</th>
+                                                <th>Vehicle ID</th>
+                                                <th>Barangay</th>
+                                                <th>Status</th>
+                                                <th>Last Updated</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="collectors-table">
+                                            {% for collector in collectors %}
+                                            <tr data-id="{{ collector.id }}">
+                                                <td>{{ collector.id }}</td>
+                                                <td>{{ collector.user.username }}</td>
+                                                <td>{{ collector.vehicle_id }}</td>
+                                                <td>{{ collector.assigned_barangay.name }}</td>
+                                                <td>
+                                                    {% if collector.is_active %}
+                                                        <span class="badge bg-success">Active</span>
+                                                    {% else %}
+                                                        <span class="badge bg-danger">Inactive</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ collector.last_updated or 'Never' }}</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-primary track-btn" data-id="{{ collector.id }}">
+                                                        <i class="bi bi-geo"></i> Track
+                                                    </button>
+                                                    <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#contactModal{{ collector.id }}">
+                                                        <i class="bi bi-telephone"></i> Contact
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Filter Modal -->
+    <div class="modal fade" id="filterModal" tabindex="-1" aria-labelledby="filterModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="filterModalLabel">Filter Collectors</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="filter-form">
+                        <div class="mb-3">
+                            <label for="district-filter" class="form-label">District</label>
+                            <select class="form-select" id="district-filter">
+                                <option value="all">All Districts</option>
+                                <option value="1">District 1</option>
+                                <option value="2">District 2</option>
+                                <option value="3">District 3</option>
+                                <option value="4">District 4</option>
+                                <option value="5">District 5</option>
+                                <option value="6">District 6</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="barangay-filter" class="form-label">Barangay</label>
+                            <select class="form-select" id="barangay-filter">
+                                <option value="all">All Barangays</option>
+                                <!-- Will be populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="status-filter" class="form-label">Status</label>
+                            <select class="form-select" id="status-filter">
+                                <option value="all">All Statuses</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="apply-filter">Apply Filters</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // Initialize map centered at Quezon City
+        const map = L.map('map').setView([14.676, 121.043], 13);
+        
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        // Store markers for collectors
+        const markers = {};
+        
+        // Function to update map with collector locations
+        function updateMap() {
+            fetch('/api/collectors-location')
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(collector => {
+                        if (markers[collector.id]) {
+                            // Update existing marker
+                            markers[collector.id].setLatLng([collector.lat, collector.lng]);
+                            markers[collector.id].bindPopup(`
+                                <strong>${collector.name}</strong><br>
+                                Vehicle: ${collector.vehicle_id}<br>
+                                Barangay: ${collector.barangay}<br>
+                                Last Updated: ${collector.last_updated}
+                            `);
+                        } else {
+                            // Create new marker
+                            const truckIcon = L.icon({
+                                iconUrl: '/static/img/truck-icon.png',
+                                iconSize: [32, 32],
+                                iconAnchor: [16, 32],
+                                popupAnchor: [0, -32]
+                            });
+                            
+                            markers[collector.id] = L.marker([collector.lat, collector.lng], {icon: truckIcon}).addTo(map);
+                            markers[collector.id].bindPopup(`
+                                <strong>${collector.name}</strong><br>
+                                Vehicle: ${collector.vehicle_id}<br>
+                                Barangay: ${collector.barangay}<br>
+                                Last Updated: ${collector.last_updated}
+                            `);
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching collector locations:', error));
+        }
+        
+        // Initial map update
+        updateMap();
+        
+        // Refresh every 30 seconds
+        setInterval(updateMap, 30000);
+        
+        // Manual refresh button
+        document.querySelector('.refresh-btn').addEventListener('click', updateMap);
+        
+        // Track button functionality
+        document.querySelectorAll('.track-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const collectorId = this.getAttribute('data-id');
+                fetch(`/api/collectors-location?id=${collectorId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.length > 0) {
+                            const collector = data[0];
+                            map.setView([collector.lat, collector.lng], 16);
+                            if (markers[collector.id]) {
+                                markers[collector.id].openPopup();
+                            }
+                        }
+                    })
+                    .catch(error => console.error('Error tracking collector:', error));
+            });
+        });
+    </script>
+</body>
+</html>

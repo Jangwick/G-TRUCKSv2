@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule Management - G-TRUCKS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="50">
+                        <h5 class="text-white mt-2">Admin Panel</h5>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                                <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_barangays') }}">
+                                <i class="bi bi-geo-alt me-2"></i> Barangay Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_collectors') }}">
+                                <i class="bi bi-truck me-2"></i> Collector Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{{ url_for('admin_schedules') }}">
+                                <i class="bi bi-calendar-event me-2"></i> Scheduling
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_users') }}">
+                                <i class="bi bi-people me-2"></i> User Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_tracking') }}">
+                                <i class="bi bi-map me-2"></i> Live Tracking
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_reports') }}">
+                                <i class="bi bi-file-earmark-text me-2"></i> Reports
+                            </a>
+                        </li>
+                        <li class="nav-item mt-5">
+                            <a class="nav-link" href="{{ url_for('logout') }}">
+                                <i class="bi bi-box-arrow-right me-2"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">Waste Collection Schedules</h1>
+                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addScheduleModal">
+                        <i class="bi bi-plus"></i> Add New Schedule
+                    </button>
+                </div>
+
+                {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- Weekly Calendar View -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                        <h6 class="m-0 font-weight-bold text-primary">Weekly Schedule</h6>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-secondary btn-sm" id="prev-week">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                            <span class="btn btn-outline-secondary btn-sm" id="current-week-display">
+                                Current Week
+                            </span>
+                            <button class="btn btn-outline-secondary btn-sm" id="next-week">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="weekly-calendar">
+                                <thead>
+                                    <tr class="bg-light">
+                                        <th style="width: 12%;">Time</th>
+                                        <th style="width: 12%;">Monday</th>
+                                        <th style="width: 12%;">Tuesday</th>
+                                        <th style="width: 12%;">Wednesday</th>
+                                        <th style="width: 12%;">Thursday</th>
+                                        <th style="width: 12%;">Friday</th>
+                                        <th style="width: 12%;">Saturday</th>
+                                        <th style="width: 12%;">Sunday</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="text-center fw-bold">Morning<br><small>6:00 - 12:00</small></td>
+                                        <td class="schedule-cell" data-day="Monday" data-time="morning"></td>
+                                        <td class="schedule-cell" data-day="Tuesday" data-time="morning"></td>
+                                        <td class="schedule-cell" data-day="Wednesday" data-time="morning"></td>
+                                        <td class="schedule-cell" data-day="Thursday" data-time="morning"></td>
+                                        <td class="schedule-cell" data-day="Friday" data-time="morning"></td>
+                                        <td class="schedule-cell" data-day="Saturday" data-time="morning"></td>
+                                        <td class="schedule-cell" data-day="Sunday" data-time="morning"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-center fw-bold">Afternoon<br><small>12:00 - 18:00</small></td>
+                                        <td class="schedule-cell" data-day="Monday" data-time="afternoon"></td>
+                                        <td class="schedule-cell" data-day="Tuesday" data-time="afternoon"></td>
+                                        <td class="schedule-cell" data-day="Wednesday" data-time="afternoon"></td>
+                                        <td class="schedule-cell" data-day="Thursday" data-time="afternoon"></td>
+                                        <td class="schedule-cell" data-day="Friday" data-time="afternoon"></td>
+                                        <td class="schedule-cell" data-day="Saturday" data-time="afternoon"></td>
+                                        <td class="schedule-cell" data-day="Sunday" data-time="afternoon"></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-center fw-bold">Evening<br><small>18:00 - 22:00</small></td>
+                                        <td class="schedule-cell" data-day="Monday" data-time="evening"></td>
+                                        <td class="schedule-cell" data-day="Tuesday" data-time="evening"></td>
+                                        <td class="schedule-cell" data-day="Wednesday" data-time="evening"></td>
+                                        <td class="schedule-cell" data-day="Thursday" data-time="evening"></td>
+                                        <td class="schedule-cell" data-day="Friday" data-time="evening"></td>
+                                        <td class="schedule-cell" data-day="Saturday" data-time="evening"></td>
+                                        <td class="schedule-cell" data-day="Sunday" data-time="evening"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schedule List -->
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                        <h6 class="m-0 font-weight-bold text-primary">All Schedules</h6>
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="filterDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-funnel"></i> Filter
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="filterDropdown">
+                                <li><a class="dropdown-item" href="#">All Schedules</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">By Barangay</h6></li>
+                                {% for barangay in barangays %}
+                                    <li><a class="dropdown-item" href="#">{{ barangay.name }}</a></li>
+                                {% endfor %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">By Day</h6></li>
+                                <li><a class="dropdown-item" href="#">Monday</a></li>
+                                <li><a class="dropdown-item" href="#">Tuesday</a></li>
+                                <li><a class="dropdown-item" href="#">Wednesday</a></li>
+                                <li><a class="dropdown-item" href="#">Thursday</a></li>
+                                <li><a class="dropdown-item" href="#">Friday</a></li>
+                                <li><a class="dropdown-item" href="#">Saturday</a></li>
+                                <li><a class="dropdown-item" href="#">Sunday</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover" id="scheduleTable" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Barangay</th>
+                                        <th>Collector</th>
+                                        <th>Day</th>
+                                        <th>Time</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for schedule in schedules %}
+                                    <tr>
+                                        <td>{{ schedule.id }}</td>
+                                        <td>{{ schedule.barangay.name }}</td>
+                                        <td>{{ schedule.collector.user.username }} ({{ schedule.collector.vehicle_id }})</td>
+                                        <td>{{ schedule.day_of_week }}</td>
+                                        <td>{{ schedule.time_start.strftime('%H:%M') }} - {{ schedule.time_end.strftime('%H:%M') }}</td>
+                                        <td>
+                                            {% if schedule.status == 'scheduled' %}
+                                                <span class="badge bg-primary">Scheduled</span>
+                                            {% elif schedule.status == 'in-progress' %}
+                                                <span class="badge bg-warning">In Progress</span>
+                                            {% elif schedule.status == 'completed' %}
+                                                <span class="badge bg-success">Completed</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ schedule.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editScheduleModal{{ schedule.id }}">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteScheduleModal{{ schedule.id }}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Add Schedule Modal -->
+    <div class="modal fade" id="addScheduleModal" tabindex="-1" aria-labelledby="addScheduleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addScheduleModalLabel">Add New Schedule</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="{{ url_for('admin_schedules') }}">
+                        <div class="mb-3">
+                            <label for="barangay" class="form-label">Barangay</label>
+                            <select class="form-select" id="barangay" name="barangay" required>
+                                <option value="" selected disabled>Select barangay</option>
+                                {% for barangay in barangays %}
+                                    <option value="{{ barangay.id }}">{{ barangay.name }} (District {{ barangay.district }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="collector" class="form-label">Collector</label>
+                            <select class="form-select" id="collector" name="collector" required>
+                                <option value="" selected disabled>Select collector</option>
+                                {% for collector in collectors %}
+                                    <option value="{{ collector.id }}">{{ collector.user.username }} - {{ collector.vehicle_id }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="day_of_week" class="form-label">Day of Week</label>
+                            <select class="form-select" id="day_of_week" name="day_of_week" required>
+                                <option value="" selected disabled>Select day</option>
+                                <option value="Monday">Monday</option>
+                                <option value="Tuesday">Tuesday</option>
+                                <option value="Wednesday">Wednesday</option>
+                                <option value="Thursday">Thursday</option>
+                                <option value="Friday">Friday</option>
+                                <option value="Saturday">Saturday</option>
+                                <option value="Sunday">Sunday</option>
+                            </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="time_start" class="form-label">Start Time</label>
+                                <input type="time" class="form-control" id="time_start" name="time_start" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="time_end" class="form-label">End Time</label>
+                                <input type="time" class="form-control" id="time_end" name="time_end" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+                            <div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="status" id="statusScheduled" value="scheduled" checked>
+                                    <label class="form-check-label" for="statusScheduled">Scheduled</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="status" id="statusInProgress" value="in-progress">
+                                    <label class="form-check-label" for="statusInProgress">In Progress</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="status" id="statusCompleted" value="completed">
+                                    <label class="form-check-label" for="statusCompleted">Completed</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success">Add Schedule</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit/Delete Modals for each schedule -->
+    {% for schedule in schedules %}
+    <!-- Edit Schedule Modal -->
+    <div class="modal fade" id="editScheduleModal{{ schedule.id }}" tabindex="-1" aria-labelledby="editScheduleModalLabel{{ schedule.id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editScheduleModalLabel{{ schedule.id }}">Edit Schedule</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="{{ url_for('admin_schedules_edit', schedule_id=schedule.id) }}">
+                        <div class="mb-3">
+                            <label for="barangay{{ schedule.id }}" class="form-label">Barangay</label>
+                            <select class="form-select" id="barangay{{ schedule.id }}" name="barangay">
+                                {% for barangay in barangays %}
+                                    <option value="{{ barangay.id }}" {% if schedule.barangay_id == barangay.id %}selected{% endif %}>
+                                        {{ barangay.name }} (District {{ barangay.district }})
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="collector{{ schedule.id }}" class="form-label">Collector</label>
+                            <select class="form-select" id="collector{{ schedule.id }}" name="collector">
+                                {% for collector in collectors %}
+                                    <option value="{{ collector.id }}" {% if schedule.collector_id == collector.id %}selected{% endif %}>
+                                        {{ collector.user.username }} - {{ collector.vehicle_id }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="day_of_week{{ schedule.id }}" class="form-label">Day of Week</label>
+                            <select class="form-select" id="day_of_week{{ schedule.id }}" name="day_of_week">
+                                <option value="Monday" {% if schedule.day_of_week == 'Monday' %}selected{% endif %}>Monday</option>
+                                <option value="Tuesday" {% if schedule.day_of_week == 'Tuesday' %}selected{% endif %}>Tuesday</option>
+                                <option value="Wednesday" {% if schedule.day_of_week == 'Wednesday' %}selected{% endif %}>Wednesday</option>
+                                <option value="Thursday" {% if schedule.day_of_week == 'Thursday' %}selected{% endif %}>Thursday</option>
+                                <option value="Friday" {% if schedule.day_of_week == 'Friday' %}selected{% endif %}>Friday</option>
+                                <option value="Saturday" {% if schedule.day_of_week == 'Saturday' %}selected{% endif %}>Saturday</option>
+                                <option value="Sunday" {% if schedule.day_of_week == 'Sunday' %}selected{% endif %}>Sunday</option>
+                            </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="time_start{{ schedule.id }}" class="form-label">Start Time</label>
+                                <input type="time" class="form-control" id="time_start{{ schedule.id }}" name="time_start" value="{{ schedule.time_start.strftime('%H:%M') }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="time_end{{ schedule.id }}" class="form-label">End Time</label>
+                                <input type="time" class="form-control" id="time_end{{ schedule.id }}" name="time_end" value="{{ schedule.time_end.strftime('%H:%M') }}">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+                            <div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="status" id="statusScheduled{{ schedule.id }}" value="scheduled" {% if schedule.status == 'scheduled' %}checked{% endif %}>
+                                    <label class="form-check-label" for="statusScheduled{{ schedule.id }}">Scheduled</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="status" id="statusInProgress{{ schedule.id }}" value="in-progress" {% if schedule.status == 'in-progress' %}checked{% endif %}>
+                                    <label class="form-check-label" for="statusInProgress{{ schedule.id }}">In Progress</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="status" id="statusCompleted{{ schedule.id }}" value="completed" {% if schedule.status == 'completed' %}checked{% endif %}>
+                                    <label class="form-check-label" for="statusCompleted{{ schedule.id }}">Completed</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Schedule Modal -->
+    <div class="modal fade" id="deleteScheduleModal{{ schedule.id }}" tabindex="-1" aria-labelledby="deleteScheduleModalLabel{{ schedule.id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteScheduleModalLabel{{ schedule.id }}">Delete Schedule</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this schedule?</p>
+                    <p><strong>Barangay:</strong> {{ schedule.barangay.name }}</p>
+                    <p><strong>Collector:</strong> {{ schedule.collector.user.username }}</p>
+                    <p><strong>Day:</strong> {{ schedule.day_of_week }}</p>
+                    <p><strong>Time:</strong> {{ schedule.time_start.strftime('%H:%M') }} - {{ schedule.time_end.strftime('%H:%M') }}</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form method="POST" action="{{ url_for('admin_schedules_delete', schedule_id=schedule.id) }}">
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // Populate weekly calendar with schedules
+        document.addEventListener('DOMContentLoaded', function() {
+            // Sample data representation - in a real implementation, this would come from the server
+            const schedules = [
+                {% for schedule in schedules %}
+                {
+                    id: {{ schedule.id }},
+                    barangay: "{{ schedule.barangay.name }}",
+                    collector: "{{ schedule.collector.user.username }}",
+                    day: "{{ schedule.day_of_week }}",
+                    timeStart: "{{ schedule.time_start.strftime('%H:%M') }}",
+                    timeEnd: "{{ schedule.time_end.strftime('%H:%M') }}",
+                    status: "{{ schedule.status }}"
+                },
+                {% endfor %}
+            ];
+            
+            // Populate calendar cells
+            schedules.forEach(schedule => {
+                let timeSlot = "morning";
+                const startHour = parseInt(schedule.timeStart.split(':')[0]);
+                
+                if (startHour >= 12 && startHour < 18) {
+                    timeSlot = "afternoon";
+                } else if (startHour >= 18) {
+                    timeSlot = "evening";
+                }
+                
+                const cell = document.querySelector(`.schedule-cell[data-day="${schedule.day}"][data-time="${timeSlot}"]`);
+                if (cell) {
+                    let existingContent = cell.innerHTML;
+                    let statusClass = '';
+                    
+                    if (schedule.status === 'scheduled') statusClass = 'bg-primary text-white';
+                    else if (schedule.status === 'in-progress') statusClass = 'bg-warning';
+                    else if (schedule.status === 'completed') statusClass = 'bg-success text-white';
+                    
+                    let newScheduleHtml = `
+                        <div class="p-1 mb-1 rounded ${statusClass}">
+                            <small class="d-block"><strong>${schedule.barangay}</strong></small>
+                            <small class="d-block">${schedule.timeStart} - ${schedule.timeEnd}</small>
+                            <small class="d-block">${schedule.collector}</small>
+                        </div>
+                    `;
+                    
+                    cell.innerHTML = existingContent + newScheduleHtml;
+                }
+            });
+            
+            // Week navigation (placeholder for future implementation)
+            document.getElementById('prev-week').addEventListener('click', function() {
+                alert('Previous week functionality would be implemented here');
+            });
+            
+            document.getElementById('next-week').addEventListener('click', function() {
+                alert('Next week functionality would be implemented here');
+            });
+        });
+        
+        // Time validation
+        document.querySelector('#addScheduleModal form').addEventListener('submit', function(event) {
+            const timeStart = document.getElementById('time_start').value;
+            const timeEnd = document.getElementById('time_end').value;
+            
+            if (timeStart >= timeEnd) {
+                event.preventDefault();
+                alert('End time must be after start time');
+            }
+        });
+        
+        // For each schedule's edit form
+        document.querySelectorAll('[id^="editScheduleModal"] form').forEach(form => {
+            form.addEventListener('submit', function(event) {
+                const scheduleId = this.getAttribute('action').split('/').pop();
+                const timeStart = document.getElementById('time_start' + scheduleId).value;
+                const timeEnd = document.getElementById('time_end' + scheduleId).value;
+                
+                if (timeStart >= timeEnd) {
+                    event.preventDefault();
+                    alert('End time must be after start time');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

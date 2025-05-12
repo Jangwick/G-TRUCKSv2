@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications - G-TRUCKS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/user.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('user_dashboard') }}">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="40">
+                G-TRUCKS
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user_dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user_tracking') }}">Live Tracking</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('user_profile') }}">My Profile</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ current_user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('user_profile') }}">Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <div class="row mb-4">
+            <div class="col">
+                <h2>Notifications</h2>
+                <p class="text-muted">Your waste collection alerts and updates</p>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-outline-secondary" id="mark-all-read">
+                    <i class="bi bi-check-all"></i> Mark All as Read
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-9">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        {% if notifications %}
+                            <div class="list-group">
+                                {% for notification in notifications %}
+                                    <div class="list-group-item list-group-item-action {% if not notification.is_read %}active-notification{% endif %}">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">
+                                                {% if not notification.is_read %}
+                                                    <span class="badge bg-primary me-1">New</span>
+                                                {% endif %}
+                                                Collection Update
+                                            </h5>
+                                            <small>{{ notification.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                        </div>
+                                        <p class="mb-1">{{ notification.message }}</p>
+                                        <small class="text-muted">For {{ current_user.barangay.name }} area</small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-5">
+                                <i class="bi bi-bell-slash fs-1 text-muted"></i>
+                                <h4 class="mt-3">No Notifications</h4>
+                                <p class="text-muted">You don't have any notifications at the moment.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if notifications %}
+                    <nav aria-label="Notifications pagination" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Previous</a>
+                            </li>
+                            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                            <li class="page-item"><a class="page-link" href="#">2</a></li>
+                            <li class="page-item"><a class="page-link" href="#">3</a></li>
+                            <li class="page-item">
+                                <a class="page-link" href="#">Next</a>
+                            </li>
+                        </ul>
+                    </nav>
+                {% endif %}
+            </div>
+
+            <div class="col-lg-3">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">Settings</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="emailNotifications" checked>
+                            <label class="form-check-label" for="emailNotifications">Email Notifications</label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="smsNotifications">
+                            <label class="form-check-label" for="smsNotifications">SMS Notifications</label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="scheduleNotifications" checked>
+                            <label class="form-check-label" for="scheduleNotifications">Schedule Updates</label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="proximityNotifications" checked>
+                            <label class="form-check-label" for="proximityNotifications">Proximity Alerts</label>
+                        </div>
+                        <button class="btn btn-success w-100">Save Settings</button>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">Filter by Type</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group">
+                            <a href="#" class="list-group-item list-group-item-action active">All</a>
+                            <a href="#" class="list-group-item list-group-item-action">Collection Updates</a>
+                            <a href="#" class="list-group-item list-group-item-action">Schedule Changes</a>
+                            <a href="#" class="list-group-item list-group-item-action">System Alerts</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white py-4 mt-auto">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>G-TRUCKS</h5>
+                    <p>Smart waste collection for a cleaner community.</p>
+                </div>
+                <div class="col-md-3">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="{{ url_for('user_dashboard') }}" class="text-white">Dashboard</a></li>
+                        <li><a href="{{ url_for('user_tracking') }}" class="text-white">Live Tracking</a></li>
+                        <li><a href="{{ url_for('user_profile') }}" class="text-white">Profile</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h5>Connect</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-white">Help Center</a></li>
+                        <li><a href="#" class="text-white">Contact Support</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr>
+            <div class="text-center">
+                <p>&copy; 2023 G-TRUCKS. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
+    <script>
+        // Mark all notifications as read
+        document.getElementById('mark-all-read').addEventListener('click', function() {
+            const notificationItems = document.querySelectorAll('.active-notification');
+            notificationItems.forEach(item => {
+                item.classList.remove('active-notification');
+                const badgeEl = item.querySelector('.badge');
+                if (badgeEl) {
+                    badgeEl.remove();
+                }
+            });
+            
+            // Send request to server to mark all as read
+            fetch('/user/notifications/mark-all-read', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+        });
+    </script>
+</body>
+</html>

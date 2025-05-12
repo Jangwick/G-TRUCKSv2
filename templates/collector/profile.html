@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile - G-TRUCKS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/collector.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('collector_dashboard') }}">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="40">
+                G-TRUCKS Collector
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('collector_dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('collector_schedules') }}">My Schedules</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('collector_reports') }}">Reports</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            {% if avatar_path %}
+                                <img src="{{ url_for('static', filename='uploads/avatars/' + avatar_path) }}?v={{ now }}" 
+                                     alt="{{ current_user.username }}" 
+                                     class="rounded-circle me-1" 
+                                     style="width: 24px; height: 24px; object-fit: cover;"
+                                     onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}'; this.style.display='none'; document.getElementById('fallbackIcon').style.display='inline-block';">
+                                <i id="fallbackIcon" class="bi bi-person-circle" style="display: none;"></i>
+                            {% else %}
+                                <i class="bi bi-person-circle"></i>
+                            {% endif %}
+                            {{ current_user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item active" href="{{ url_for('collector_profile') }}">Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="row mb-4">
+            <div class="col">
+                <h2 class="mb-4">My Profile</h2>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-lg-4 mb-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        {% if avatar_path %}
+                            <img src="{{ url_for('static', filename='uploads/avatars/' + avatar_path) }}?v={{ now }}" 
+                                 class="rounded-circle img-thumbnail mb-3" 
+                                 alt="Profile Picture" 
+                                 style="width: 150px; height: 150px; object-fit: cover;"
+                                 onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}'; console.log('Failed to load avatar: {{ avatar_path }}');">
+                            <small class="d-block text-muted mt-1">Collector ID: {{ current_user.id }}</small>
+                        {% else %}
+                            <img src="{{ url_for('static', filename='img/avatar-default.png') }}" 
+                                 class="rounded-circle img-thumbnail mb-3" 
+                                 alt="Profile Picture" 
+                                 style="width: 150px; height: 150px; object-fit: cover;">
+                            <small class="d-block text-muted mt-1">No custom avatar</small>
+                        {% endif %}
+                        <h5 class="card-title">{{ current_user.username }}</h5>
+                        <p class="text-muted">{{ collector.vehicle_id }}</p>
+                        <p class="mb-2">
+                            <span class="badge bg-success">Collector</span>
+                            <span class="badge bg-primary">{{ collector.assigned_barangay.name }}</span>
+                        </p>
+                        <button class="btn btn-sm btn-outline-primary mb-2" data-bs-toggle="modal" data-bs-target="#uploadAvatarModal">
+                            <i class="bi bi-camera"></i> Change Photo
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Contact Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Email</label>
+                            <div class="fw-bold">{{ current_user.email }}</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Phone</label>
+                            <div class="fw-bold">{{ current_user.phone or 'Not specified' }}</div>
+                        </div>
+                        <div>
+                            <label class="form-label text-muted">Address</label>
+                            <div class="fw-bold">{{ current_user.address or 'Not specified' }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-8">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Account Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('collector_profile') }}">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="firstName" class="form-label">First Name</label>
+                                    <input type="text" class="form-control" id="firstName" name="firstName" placeholder="Enter first name">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="lastName" class="form-label">Last Name</label>
+                                    <input type="text" class="form-control" id="lastName" name="lastName" placeholder="Enter last name">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="phone" class="form-label">Phone Number</label>
+                                <input type="tel" class="form-control" id="phone" name="phone" value="{{ current_user.phone or '' }}" placeholder="Enter phone number">
+                            </div>
+                            <div class="mb-3">
+                                <label for="address" class="form-label">Address</label>
+                                <textarea class="form-control" id="address" name="address" rows="2" placeholder="Enter address">{{ current_user.address or '' }}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="emergencyContact" class="form-label">Emergency Contact</label>
+                                <input type="text" class="form-control" id="emergencyContact" name="emergencyContact" placeholder="Enter emergency contact">
+                            </div>
+                            <button type="submit" class="btn btn-success">Update Profile</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Security Settings</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('collector_profile') }}" id="password-form">
+                            <input type="hidden" name="form_type" value="password_change">
+                            <div class="mb-3">
+                                <label for="currentPassword" class="form-label">Current Password</label>
+                                <input type="password" class="form-control" id="currentPassword" name="currentPassword" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="newPassword" class="form-label">New Password</label>
+                                <input type="password" class="form-control" id="newPassword" name="newPassword" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                                <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required>
+                            </div>
+                            <button type="submit" class="btn btn-danger">Change Password</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Avatar Modal -->
+    <div class="modal fade" id="uploadAvatarModal" tabindex="-1" aria-labelledby="uploadAvatarModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="uploadAvatarModalLabel">Change Profile Photo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="{{ url_for('upload_avatar') }}" enctype="multipart/form-data">
+                        <input type="hidden" name="user_type" value="collector">
+                        <div class="mb-3">
+                            <label for="avatar" class="form-label">Select Image</label>
+                            <input class="form-control" type="file" id="avatar" name="avatar" accept="image/*" required>
+                        </div>
+                        <div class="text-center mb-3">
+                            <div id="avatar-preview-container" class="d-none mx-auto mb-3" style="width: 150px; height: 150px; border-radius: 50%; overflow: hidden;">
+                                <img id="avatar-preview" src="#" alt="Avatar Preview" class="img-fluid w-100 h-100" style="object-fit: cover;">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">Upload</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white py-4 mt-auto">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>G-TRUCKS</h5>
+                    <p>Smart waste collection for a cleaner community.</p>
+                </div>
+                <div class="col-md-3">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="{{ url_for('collector_dashboard') }}" class="text-white">Dashboard</a></li>
+                        <li><a href="{{ url_for('collector_schedules') }}" class="text-white">My Schedules</a></li>
+                        <li><a href="{{ url_for('collector_reports') }}" class="text-white">Reports</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h5>Support</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-white">Contact Admin</a></li>
+                        <li><a href="#" class="text-white">Help Guide</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr>
+            <div class="text-center">
+                <p>&copy; 2023 G-TRUCKS. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Form validation
+        document.querySelector('#password-form').addEventListener('submit', function(e) {
+            const newPassword = document.getElementById('newPassword');
+            const confirmPassword = document.getElementById('confirmPassword');
+            
+            if (newPassword && confirmPassword && newPassword.value !== confirmPassword.value) {
+                e.preventDefault();
+                alert('New password and confirm password do not match');
+            }
+        });
+        
+        // Preview avatar image before upload
+        document.getElementById('avatar').addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                const previewContainer = document.getElementById('avatar-preview-container');
+                const preview = document.getElementById('avatar-preview');
+                
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    previewContainer.classList.remove('d-none');
+                }
+                
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Reload page after successful upload to display new image
+        document.querySelector('form[action="{{ url_for("upload_avatar") }}"]').addEventListener('submit', function(e) {
+            // Store a flag indicating we're coming back from an upload
+            sessionStorage.setItem('avatar_updated', 'true');
+            sessionStorage.setItem('upload_time', Date.now());
+        });
+        
+        // Check if we're coming back after an avatar update
+        document.addEventListener('DOMContentLoaded', function() {
+            if (sessionStorage.getItem('avatar_updated')) {
+                // Clear the flag
+                sessionStorage.removeItem('avatar_updated');
+                const uploadTime = sessionStorage.getItem('upload_time');
+                sessionStorage.removeItem('upload_time');
+                
+                // Force reload to bypass cache for the avatar image
+                const avatarImg = document.querySelector('.card-body.text-center img');
+                if (avatarImg) {
+                    const newSrc = avatarImg.src.split('?')[0] + '?v=' + (uploadTime || Date.now());
+                    console.log("Updating avatar image to:", newSrc);
+                    avatarImg.src = newSrc;
+                    
+                    // Add a forced refresh after a short delay
+                    setTimeout(() => {
+                        location.reload(true);
+                    }, 500);
+                }
+                
+                // Show a success message
+                const successMsg = document.createElement('div');
+                successMsg.className = 'alert alert-success alert-dismissible fade show mb-3';
+                successMsg.innerHTML = 'Avatar updated successfully! <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+                document.querySelector('.card-body.text-center').prepend(successMsg);
+            }
+        });
+    </script>
+</body>
+</html>

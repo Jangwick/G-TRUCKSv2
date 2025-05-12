@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barangay Management - G-TRUCKS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="50">
+                        <h5 class="text-white mt-2">Admin Panel</h5>
+                    </div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                                <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="{{ url_for('admin_barangays') }}">
+                                <i class="bi bi-geo-alt me-2"></i> Barangay Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_collectors') }}">
+                                <i class="bi bi-truck me-2"></i> Collector Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_schedules') }}">
+                                <i class="bi bi-calendar-event me-2"></i> Scheduling
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_users') }}">
+                                <i class="bi bi-people me-2"></i> User Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_tracking') }}">
+                                <i class="bi bi-map me-2"></i> Live Tracking
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('admin_reports') }}">
+                                <i class="bi bi-file-earmark-text me-2"></i> Reports
+                            </a>
+                        </li>
+                        <li class="nav-item mt-5">
+                            <a class="nav-link" href="{{ url_for('logout') }}">
+                                <i class="bi bi-box-arrow-right me-2"></i> Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">Barangay Management</h1>
+                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addBarangayModal">
+                        <i class="bi bi-plus"></i> Add Barangay
+                    </button>
+                </div>
+
+                {% with messages = get_flashed_messages() %}
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Registered Barangays</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover" id="barangaysTable" width="100%" cellspacing="0">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>District</th>
+                                        <th>Registered Users</th>
+                                        <th>Active Collectors</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for barangay in barangays %}
+                                    <tr>
+                                        <td>{{ barangay.id }}</td>
+                                        <td>{{ barangay.name }}</td>
+                                        <td>District {{ barangay.district }}</td>
+                                        <td>{{ barangay.users|length }}</td>
+                                        <td>{{ barangay.collectors|length }}</td>
+                                        <td>
+                                            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editBarangayModal{{ barangay.id }}">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#deleteBarangayModal{{ barangay.id }}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- District Summary -->
+                <div class="row">
+                    {% for i in range(1, 7) %}
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card border-left-primary shadow h-100 py-2">
+                            <div class="card-body">
+                                <div class="row no-gutters align-items-center">
+                                    <div class="col mr-2">
+                                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                            District {{ i }}</div>
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                            {{ barangays|selectattr('district', 'equalto', i)|list|length }} Barangays
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <i class="bi bi-geo-alt fa-2x text-gray-300"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Add Barangay Modal -->
+    <div class="modal fade" id="addBarangayModal" tabindex="-1" aria-labelledby="addBarangayModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addBarangayModalLabel">Add New Barangay</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="{{ url_for('admin_barangays') }}">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Barangay Name</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="district" class="form-label">District</label>
+                            <select class="form-select" id="district" name="district" required>
+                                <option value="" selected disabled>Select District</option>
+                                <option value="1">District 1</option>
+                                <option value="2">District 2</option>
+                                <option value="3">District 3</option>
+                                <option value="4">District 4</option>
+                                <option value="5">District 5</option>
+                                <option value="6">District 6</option>
+                            </select>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success">Add Barangay</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit/Delete Modals (would be generated for each barangay) -->
+    {% for barangay in barangays %}
+    <!-- Edit Barangay Modal -->
+    <div class="modal fade" id="editBarangayModal{{ barangay.id }}" tabindex="-1" aria-labelledby="editBarangayModalLabel{{ barangay.id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editBarangayModalLabel{{ barangay.id }}">Edit Barangay</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="{{ url_for('admin_barangays_edit', barangay_id=barangay.id) }}">
+                        <div class="mb-3">
+                            <label for="name{{ barangay.id }}" class="form-label">Barangay Name</label>
+                            <input type="text" class="form-control" id="name{{ barangay.id }}" name="name" value="{{ barangay.name }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="district{{ barangay.id }}" class="form-label">District</label>
+                            <select class="form-select" id="district{{ barangay.id }}" name="district" required>
+                                <option value="1" {% if barangay.district == 1 %}selected{% endif %}>District 1</option>
+                                <option value="2" {% if barangay.district == 2 %}selected{% endif %}>District 2</option>
+                                <option value="3" {% if barangay.district == 3 %}selected{% endif %}>District 3</option>
+                                <option value="4" {% if barangay.district == 4 %}selected{% endif %}>District 4</option>
+                                <option value="5" {% if barangay.district == 5 %}selected{% endif %}>District 5</option>
+                                <option value="6" {% if barangay.district == 6 %}selected{% endif %}>District 6</option>
+                            </select>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Barangay Modal -->
+    <div class="modal fade" id="deleteBarangayModal{{ barangay.id }}" tabindex="-1" aria-labelledby="deleteBarangayModalLabel{{ barangay.id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteBarangayModalLabel{{ barangay.id }}">Delete Barangay</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete <strong>{{ barangay.name }}</strong>?</p>
+                    <p class="text-danger">This action cannot be undone and will remove all associated collectors and schedules.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form method="POST" action="{{ url_for('admin_barangays_delete', barangay_id=barangay.id) }}">
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
+
+    <!-- DataTables -->
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+
+    <script>
+        // Initialize DataTables for better table navigation
+        $(document).ready(function() {
+            $('#barangaysTable').DataTable({
+                "order": [[ 2, "asc" ], [ 1, "asc" ]] // Sort by district then name
+            });
+        });
+    </script>
+</body>
+</html>

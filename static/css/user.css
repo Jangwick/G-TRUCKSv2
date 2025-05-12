@@ -1,0 +1,88 @@
+/* User Dashboard Styles */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Navbar */
+.navbar {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.notification-badge {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    font-size: 0.6rem;
+}
+
+/* Cards */
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    border-bottom: 1px solid rgba(0,0,0,.05);
+    background-color: transparent;
+}
+
+/* Notification styles */
+.active-notification {
+    background-color: rgba(13, 110, 253, 0.05);
+    border-left: 3px solid #0d6efd;
+}
+
+/* Footer */
+footer {
+    margin-top: auto;
+}
+
+/* Status badges */
+.badge {
+    font-weight: 500;
+    padding: 0.5em 0.8em;
+}
+
+/* Quick action buttons */
+.action-button {
+    height: 100%;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.action-button:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-3px);
+    box-shadow: 0 4px 6px rgba(0,0,0,.1);
+}
+
+.action-button i {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+/* Map container */
+.map-container {
+    height: 500px;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+/* Progress indicator */
+.progress {
+    height: 0.5rem;
+    border-radius: 1rem;
+}
+
+/* List group */
+.list-group-item {
+    padding: 1rem 1.25rem;
+}

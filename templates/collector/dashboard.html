@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collector Dashboard - G-TRUCKS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/collector.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #f8f9fa;
+        }
+        
+        .location-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #198754;
+            margin-right: 5px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7);
+            }
+            
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(25, 135, 84, 0);
+            }
+            
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(25, 135, 84, 0);
+            }
+        }
+        
+        .collector-status {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border-left: 4px solid #198754;
+            background-color: #f8f9fa;
+            margin-bottom: 1rem;
+        }
+        
+        .task-card {
+            border-radius: 0.5rem;
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            margin-bottom: 1rem;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .task-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+        
+        .task-card.completed {
+            opacity: 0.7;
+        }
+        
+        .task-card.active {
+            border-left: 4px solid #198754;
+        }
+        
+        .task-card.pending {
+            border-left: 4px solid #0d6efd;
+        }
+        
+        #map {
+            height: 300px;
+            border-radius: 0.5rem;
+        }
+        
+        .footer {
+            margin-top: auto;
+        }
+
+        /* Custom marker styles */
+        .custom-truck-marker {
+            background-color: transparent;
+            border: none;
+        }
+        
+        .truck-icon-container {
+            position: relative;
+        }
+        
+        .truck-icon-pulse {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: rgba(25, 135, 84, 0.3);
+            z-index: -1;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: marker-pulse 2s infinite;
+        }
+        
+        @keyframes marker-pulse {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1.5);
+                opacity: 0;
+            }
+        }
+        
+        /* Destination marker styling */
+        .destination-marker {
+            background-color: transparent;
+            border: none;
+        }
+        
+        .destination-container {
+            position: relative;
+            text-align: center;
+        }
+        
+        .destination-icon {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .destination-pulse {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: rgba(220, 53, 69, 0.3);
+            z-index: 1;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: destination-pulse 2s infinite;
+        }
+        
+        @keyframes destination-pulse {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1.5);
+                opacity: 0;
+            }
+        }
+        
+        .map-legend {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 12px;
+        }
+        
+        .map-legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .map-legend-color {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            border-radius: 3px;
+        }
+
+        /* Custom truck icon styling */
+        .truck-icon {
+            background-color: #198754;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 0 0 3px white, 0 0 10px rgba(0,0,0,0.5);
+            transform: translateY(-5px); /* Adjust for icon position */
+        }
+
+        /* Avatar map marker styling */
+        .avatar-marker-container {
+            position: relative;
+        }
+        
+        .avatar-marker-pulse {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: rgba(25, 135, 84, 0.3);
+            z-index: -1;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: marker-pulse 2s infinite;
+        }
+        
+        .avatar-marker {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            border: 3px solid #198754;
+            background-color: white;
+            object-fit: cover;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+        
+        .collector-popup {
+            text-align: center;
+        }
+        
+        .collector-popup img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 2px solid #198754;
+            object-fit: cover;
+            margin-bottom: 8px;
+        }
+        
+        .collector-popup h4 {
+            margin: 5px 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .collector-popup .details {
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        /* Direction panel styling */
+        .directions-panel {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            display: none;
+        }
+        
+        .directions-panel .list-group-item {
+            padding: 0.5rem 1rem;
+        }
+        
+        .direction-icon {
+            margin-right: 10px;
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background-color: #f8f9fa;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 24px;
+        }
+        
+        /* Custom route styling */
+        .leaflet-routing-container {
+            display: none; /* Hide default routing container */
+        }
+        
+        .custom-route-alt {
+            opacity: 0.6;
+        }
+        
+        .navigation-controls {
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('collector_dashboard') }}">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="40">
+                G-TRUCKS Collector
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('collector_dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('collector_schedules') }}">My Schedules</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('collector_reports') }}">Reports</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ current_user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('collector_profile') }}">Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2 class="mb-4">Welcome, {{ collector.user.username }}!</h2>
+                
+                <div class="collector-status d-flex align-items-center justify-content-between">
+                    <div>
+                        <h5 class="mb-1">Status: 
+                            {% if collector.is_active %}
+                                <span class="text-success">Active</span>
+                            {% else %}
+                                <span class="text-danger">Inactive</span>
+                            {% endif %}
+                        </h5>
+                        <p class="mb-0">Vehicle ID: {{ collector.vehicle_id }}</p>
+                        <p class="mb-0">Assigned to {{ collector.assigned_barangay.name }} (District {{ collector.assigned_barangay.district }})</p>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="statusToggle" {{ 'checked' if collector.is_active else '' }}>
+                        <label class="form-check-label" for="statusToggle">Enable Location Sharing</label>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="bi bi-geo-alt"></i> Your Current Location</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="map" class="mb-3"></div>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span class="location-indicator"></span>
+                                <span id="locationStatus">Updating your location...</span>
+                            </div>
+                            <div id="destinationInfo" style="display: none;">
+                                <span class="badge bg-danger">Destination:</span>
+                                <span id="destinationName">Not set</span>
+                                <span id="destinationEta" class="ms-2 fw-bold"></span>
+                            </div>
+                        </div>
+                        <div class="mt-3 d-flex flex-wrap gap-2">
+                            <button id="refreshLocation" class="btn btn-primary">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh Location
+                            </button>
+                            <button id="setDestination" class="btn btn-outline-danger">
+                                <i class="bi bi-pin-map"></i> Set Destination
+                            </button>
+                            <button id="clearDestination" class="btn btn-outline-secondary" style="display: none;">
+                                <i class="bi bi-x-circle"></i> Clear Destination
+                            </button>
+                            <button id="reportIssue" class="btn btn-outline-warning">
+                                <i class="bi bi-exclamation-triangle"></i> Report Issue
+                            </button>
+                            <button id="toggleDirections" class="btn btn-outline-info" style="display: none;">
+                                <i class="bi bi-signpost-2"></i> Show Directions
+                            </button>
+                        </div>
+                        
+                        <!-- Add directions panel -->
+                        <div id="directions-panel" class="directions-panel">
+                            <div class="card">
+                                <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                                    <h6 class="mb-0">Turn-by-turn Directions</h6>
+                                    <button type="button" class="btn-close" aria-label="Close" id="closeDirections"></button>
+                                </div>
+                                <ul class="list-group list-group-flush" id="directions-list"></ul>
+                            </div>
+                        </div>
+                        
+                        <!-- Add navigation controls -->
+                        <div class="navigation-controls" id="navigation-controls">
+                            <div class="d-flex justify-content-between mb-2">
+                                <button id="prev-instruction" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-arrow-left"></i> Previous
+                                </button>
+                                <span class="badge bg-primary" id="current-step">Step 1/5</span>
+                                <button id="next-instruction" class="btn btn-sm btn-outline-secondary">
+                                    Next <i class="bi bi-arrow-right"></i>
+                                </button>
+                            </div>
+                            <div class="alert alert-info py-2 mb-0" id="current-instruction">
+                                <i class="bi bi-info-circle me-1"></i> Navigate to your destination
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 class="mb-3">Today's Collection Tasks</h4>
+                
+                {% if schedules %}
+                    {% for schedule in schedules %}
+                        <div class="card task-card {{ 'completed' if schedule.status == 'completed' else ('active' if schedule.status == 'in-progress' else 'pending') }}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title">{{ schedule.barangay.name }}</h5>
+                                    <span class="badge {{ 'bg-success' if schedule.status == 'completed' else ('bg-warning' if schedule.status == 'in-progress' else 'bg-primary') }}">
+                                        {{ schedule.status|capitalize }}
+                                    </span>
+                                </div>
+                                <p class="card-text">
+                                    <i class="bi bi-clock"></i> {{ schedule.time_start.strftime('%I:%M %p') }} - {{ schedule.time_end.strftime('%I:%M %p') }}
+                                </p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="btn-group">
+                                        {% if schedule.status == 'scheduled' %}
+                                            <button class="btn btn-sm btn-outline-primary start-task" data-id="{{ schedule.id }}">
+                                                <i class="bi bi-play-fill"></i> Start
+                                            </button>
+                                        {% elif schedule.status == 'in-progress' %}
+                                            <button class="btn btn-sm btn-outline-success complete-task" data-id="{{ schedule.id }}">
+                                                <i class="bi bi-check2"></i> Complete
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger pause-task" data-id="{{ schedule.id }}">
+                                                <i class="bi bi-pause-fill"></i> Pause
+                                            </button>
+                                        {% else %}
+                                            <button class="btn btn-sm btn-outline-secondary" disabled>
+                                                <i class="bi bi-check2-all"></i> Completed
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">Est. duration: 2 hours</small>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> You have no collection tasks scheduled for today.
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="bi bi-speedometer2"></i> Performance Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h6>Collection Efficiency</h6>
+                            <div class="progress mb-2">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: 85%;" aria-valuenow="85" aria-valuemin="0" aria-valuemax="100">85%</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <h6>On-Time Performance</h6>
+                            <div class="progress mb-2">
+                                <div class="progress-bar bg-primary" role="progressbar" style="width: 92%;" aria-valuenow="92" aria-valuemin="0" aria-valuemax="100">92%</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <h6>Resident Satisfaction</h6>
+                            <div class="progress mb-2">
+                                <div class="progress-bar bg-info" role="progressbar" style="width: 89%;" aria-valuenow="89" aria-valuemin="0" aria-valuemax="100">89%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="bi bi-calendar3"></i> Upcoming Schedule</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush">
+                            {% for i in range(5) %}
+                                <li class="list-group-item">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h6 class="mb-0">{{ ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][i] }}</h6>
+                                            <small class="text-muted">9:00 AM - 11:30 AM</small>
+                                        </div>
+                                        <span class="badge bg-primary">Scheduled</span>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="card-footer text-center">
+                        <a href="{{ url_for('collector_schedules') }}" class="btn btn-sm btn-outline-primary">View All Schedules</a>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="bi bi-chat-left-text"></i> Resident Feedback</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">
+                                <div class="d-flex">
+                                    <div class="me-3">
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        <i class="bi bi-star text-warning"></i>
+                                    </div>
+                                    <div>
+                                        <p class="mb-0">Very prompt and efficient service!</p>
+                                        <small class="text-muted">- Resident from {{ collector.assigned_barangay.name }}</small>
+                                    </div>
+                                </div>
+                            </li>
+                            <li class="list-group-item">
+                                <div class="d-flex">
+                                    <div class="me-3">
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                    </div>
+                                    <div>
+                                        <p class="mb-0">Always on time and very thorough!</p>
+                                        <small class="text-muted">- Resident from {{ collector.assigned_barangay.name }}</small>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Issue Modal -->
+    <div class="modal fade" id="reportIssueModal" tabindex="-1" aria-labelledby="reportIssueModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reportIssueModalLabel">Report an Issue</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="issueForm">
+                        <div class="mb-3">
+                            <label for="issueType" class="form-label">Issue Type</label>
+                            <select class="form-select" id="issueType" required>
+                                <option value="" selected disabled>Select issue type</option>
+                                <option value="vehicle">Vehicle Problem</option>
+                                <option value="road">Road Blockage</option>
+                                <option value="weather">Bad Weather</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="issueDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="issueDescription" rows="3" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="estimatedDelay" class="form-label">Estimated Delay</label>
+                            <select class="form-select" id="estimatedDelay">
+                                <option value="15">15 minutes</option>
+                                <option value="30">30 minutes</option>
+                                <option value="60">1 hour</option>
+                                <option value="120">2+ hours</option>
+                                <option value="cancel">Need to reschedule</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="submitIssue">Submit Report</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Set Destination Modal -->
+    <div class="modal fade" id="setDestinationModal" tabindex="-1" aria-labelledby="setDestinationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="setDestinationModalLabel">Set Destination</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="destinationForm">
+                        <div class="mb-3">
+                            <label for="destinationAddress" class="form-label">Destination Address or Location</label>
+                            <input type="text" class="form-control" id="destinationAddress" placeholder="Enter address or location name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="destinationType" class="form-label">Destination Type</label>
+                            <select class="form-select" id="destinationType" required>
+                                <option value="collection">Collection Point</option>
+                                <option value="dumping">Dumping Site</option>
+                                <option value="refuel">Refueling Station</option>
+                                <option value="maintenance">Maintenance Facility</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="estimatedArrival" class="form-label">Estimated Time of Arrival</label>
+                            <input type="time" class="form-control" id="estimatedArrival">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveDestination">Save Destination</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer bg-dark text-white py-4">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>G-TRUCKS</h5>
+                    <p>Smart waste collection for a cleaner community.</p>
+                </div>
+                <div class="col-md-3">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="{{ url_for('collector_dashboard') }}" class="text-white">Dashboard</a></li>
+                        <li><a href="{{ url_for('collector_schedules') }}" class="text-white">My Schedules</a></li>
+                        <li><a href="{{ url_for('collector_reports') }}" class="text-white">Reports</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h5>Support</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-white">Contact Admin</a></li>
+                        <li><a href="#" class="text-white">Help Guide</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr>
+            <div class="text-center">
+                <p>&copy; 2023 G-TRUCKS. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([14.676, 121.043], 14);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Add map legend
+        const legend = L.control({position: 'bottomright'});
+        legend.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'map-legend');
+            div.innerHTML = `
+                <div class="map-legend-item">
+                    <div class="map-legend-color bg-success"></div>
+                    <span>Your Truck</span>
+                </div>
+                <div class="map-legend-item">
+                    <div class="map-legend-color bg-danger"></div>
+                    <span>Destination</span>
+                </div>
+                <div class="map-legend-item">
+                    <div class="map-legend-color" style="background-color: #3388ff;"></div>
+                    <span>Route</span>
+                </div>
+            `;
+            return div;
+        };
+        legend.addTo(map);
+
+        // Current location marker
+        let currentLocationMarker;
+        let watchId;
+
+        // Destination marker and route line
+        let destinationMarker = null;
+        let routeLine = null;
+
+        // Start or stop location tracking based on toggle
+        document.getElementById('statusToggle').addEventListener('change', function() {
+            if (this.checked) {
+                // Enable location tracking
+                startTracking();
+                fetch('/api/collector/set-active', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ active: true })
+                });
+            } else {
+                // Disable location tracking
+                stopTracking();
+                fetch('/api/collector/set-active', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ active: false })
+                });
+            }
+        });
+
+        function startTracking() {
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition(
+                    updateLocation,
+                    locationError,
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+                );
+                document.getElementById('locationStatus').textContent = 'Location sharing is active';
+                document.getElementById('locationStatus').className = 'text-success';
+            } else {
+                alert('Geolocation is not supported by this browser.');
+                document.getElementById('statusToggle').checked = false;
+            }
+        }
+
+        function stopTracking() {
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            document.getElementById('locationStatus').textContent = 'Location sharing is disabled';
+            document.getElementById('locationStatus').className = 'text-danger';
+        }
+
+        function updateLocation(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            
+            // Update marker on map
+            if (currentLocationMarker) {
+                currentLocationMarker.setLatLng([lat, lng]);
+                
+                // Update route if destination is set
+                if (destinationMarker) {
+                    updateRoute();
+                }
+            } else {
+                // Debug avatar path to console
+                console.log("Avatar path from template:", "{{ avatar_path|default('none') }}");
+                
+                // Get avatar URL with fallback
+                let avatarUrl;
+                {% if avatar_path %}
+                    avatarUrl = "{{ url_for('static', filename='uploads/avatars/' + avatar_path) }}?v={{ now }}";
+                    console.log("Using avatar from path:", avatarUrl);
+                {% else %}
+                    avatarUrl = "{{ url_for('static', filename='img/avatar-default.png') }}";
+                    console.log("No avatar path available, using default");
+                {% endif %}
+                
+                // Create a custom icon with collector's avatar
+                const collectorIcon = L.divIcon({
+                    className: 'custom-avatar-marker',
+                    html: `
+                        <div class="avatar-marker-container">
+                            <div class="avatar-marker-pulse"></div>
+                            <img src="${avatarUrl}" 
+                                 class="avatar-marker" 
+                                 alt="Collector" 
+                                 onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}'; console.log('Avatar load failed, using default');">
+                        </div>
+                    `,
+                    iconSize: [45, 45],
+                    iconAnchor: [22, 22],
+                    popupAnchor: [0, -25]
+                });
+                
+                currentLocationMarker = L.marker([lat, lng], {icon: collectorIcon}).addTo(map);
+                
+                // Add a richer popup with collector details
+                currentLocationMarker.bindPopup(`
+                    <div class="collector-popup">
+                        <img src="${avatarUrl}" 
+                             alt="Collector" 
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                        <h4>{{ current_user.username }}</h4>
+                        <div class="details">
+                            <strong>Vehicle ID:</strong> {{ collector.vehicle_id }}<br>
+                            <strong>Area:</strong> {{ collector.assigned_barangay.name }}<br>
+                            <strong>Status:</strong> <span class="badge bg-success">Active</span>
+                        </div>
+                        <small>Last updated: <span id="popup-timestamp">${new Date().toLocaleTimeString()}</span></small>
+                    </div>
+                `);
+                
+                map.setView([lat, lng], 15);
+            }
+            
+            // Update the popup timestamp if opened
+            const popupTimestamp = document.getElementById('popup-timestamp');
+            if (popupTimestamp) {
+                popupTimestamp.textContent = new Date().toLocaleTimeString();
+            }
+            
+            // Send location to server
+            fetch('/api/collector/update-location', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    lat: lat, 
+                    lng: lng, 
+                    timestamp: new Date().toISOString()
+                })
+            });
+            
+            document.getElementById('locationStatus').textContent = 'Location updated at ' + new Date().toLocaleTimeString();
+        }
+
+        function locationError(error) {
+            console.error('Error getting location:', error);
+            document.getElementById('locationStatus').textContent = 'Error: ' + error.message;
+            document.getElementById('locationStatus').className = 'text-danger';
+        }
+
+        // Refresh location button
+        document.getElementById('refreshLocation').addEventListener('click', function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(updateLocation, locationError);
+            }
+        });
+
+        // Report issue button
+        document.getElementById('reportIssue').addEventListener('click', function() {
+            const reportModal = new bootstrap.Modal(document.getElementById('reportIssueModal'));
+            reportModal.show();
+        });
+
+        // Submit issue form
+        document.getElementById('submitIssue').addEventListener('click', function() {
+            const issueType = document.getElementById('issueType').value;
+            const issueDescription = document.getElementById('issueDescription').value;
+            const estimatedDelay = document.getElementById('estimatedDelay').value;
+            
+            if (!issueType || !issueDescription) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            // Send issue report to server
+            fetch('/api/collector/report-issue', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    type: issueType,
+                    description: issueDescription,
+                    estimated_delay: estimatedDelay
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const reportModal = bootstrap.Modal.getInstance(document.getElementById('reportIssueModal'));
+                reportModal.hide();
+                alert('Issue reported successfully');
+            })
+            .catch(error => {
+                console.error('Error reporting issue:', error);
+                alert('Failed to report issue. Please try again.');
+            });
+        });
+
+        // Task management buttons
+        document.querySelectorAll('.start-task').forEach(button => {
+            button.addEventListener('click', function() {
+                const scheduleId = this.getAttribute('data-id');
+                updateTaskStatus(scheduleId, 'in-progress');
+            });
+        });
+
+        document.querySelectorAll('.complete-task').forEach(button => {
+            button.addEventListener('click', function() {
+                const scheduleId = this.getAttribute('data-id');
+                updateTaskStatus(scheduleId, 'completed');
+            });
+        });
+
+        function updateTaskStatus(scheduleId, status) {
+            fetch('/api/collector/update-schedule-status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    schedule_id: scheduleId,
+                    status: status
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Reload page to reflect changes
+                location.reload();
+            })
+            .catch(error => {
+                console.error('Error updating task status:', error);
+                alert('Failed to update task status. Please try again.');
+            });
+        }
+
+        // Function to set destination
+        function setDestination(lat, lng, name) {
+            // Create custom destination icon
+            const destinationIcon = L.divIcon({
+                className: 'destination-marker',
+                html: `
+                    <div class="destination-container">
+                        <div class="destination-pulse"></div>
+                        <div class="destination-icon">
+                            <i class="bi bi-geo-alt-fill fs-3 text-danger"></i>
+                        </div>
+                    </div>
+                `,
+                iconSize: [30, 30],
+                iconAnchor: [15, 30],
+                popupAnchor: [0, -30]
+            });
+            
+            // Remove existing destination if any
+            if (destinationMarker) {
+                map.removeLayer(destinationMarker);
+            }
+            
+            // Add new destination marker
+            destinationMarker = L.marker([lat, lng], {icon: destinationIcon}).addTo(map);
+            destinationMarker.bindPopup(`<strong>Destination:</strong><br>${name || 'Unknown location'}`);
+            
+            // Show destination info
+            document.getElementById('destinationInfo').style.display = 'block';
+            document.getElementById('destinationName').textContent = name || 'Set destination';
+            document.getElementById('clearDestination').style.display = 'inline-block';
+            document.getElementById('toggleDirections').style.display = 'inline-block';
+            
+            // Update the route using pathfinding
+            updateRouteWithPathfinding();
+        }
+        
+        // Function to update route using proper pathfinding
+        function updateRouteWithPathfinding() {
+            if (!currentLocationMarker || !destinationMarker) return;
+            
+            const start = currentLocationMarker.getLatLng();
+            const end = destinationMarker.getLatLng();
+            
+            // Remove existing route control if any
+            if (routeControl) {
+                map.removeControl(routeControl);
+            }
+            
+            // Create new route with Leaflet Routing Machine
+            routeControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(start.lat, start.lng),
+                    L.latLng(end.lat, end.lng)
+                ],
+                router: L.Routing.osrmv1({
+                    serviceUrl: 'https://router.project-osrm.org/route/v1',
+                    profile: 'driving' // Options: driving, cycling, walking
+                }),
+                lineOptions: {
+                    styles: [
+                        { color: 'black', opacity: 0.15, weight: 9 },
+                        { color: '#3388ff', opacity: 0.8, weight: 6 },
+                        { color: 'white', opacity: 0.3, weight: 4 }
+                    ]
+                },
+                routeWhileDragging: false,
+                addWaypoints: false,
+                draggableWaypoints: false,
+                fitSelectedRoutes: true,
+                showAlternatives: true,
+                altLineOptions: {
+                    styles: [
+                        { color: 'black', opacity: 0.15, weight: 9 },
+                        { color: '#6c757d', opacity: 0.6, weight: 6 },
+                        { color: 'white', opacity: 0.3, weight: 4 }
+                    ],
+                    extendToWaypoints: false,
+                    missingRouteTolerance: 0
+                }
+            }).addTo(map);
+            
+            // Event when route is found
+            routeControl.on('routesfound', function(e) {
+                const routes = e.routes;
+                const summary = routes[0].summary;
+                
+                // Update ETA and distance information
+                const distance = formatDistance(summary.totalDistance);
+                const time = formatTime(summary.totalTime);
+                
+                document.getElementById('destinationEta').textContent = `${distance} (ETA: ${time})`;
+                
+                // Generate turn-by-turn directions
+                generateDirections(routes[0].instructions);
+                
+                // Fit the map to the route
+                map.fitBounds(routes[0].bounds, {
+                    padding: [50, 50],
+                    maxZoom: 15
+                });
+            });
+        }
+        
+        // Function to format time from seconds to readable format
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            
+            if (minutes < 60) {
+                return `${minutes} min`;
+            } else {
+                const hours = Math.floor(minutes / 60);
+                const remainingMinutes = minutes % 60;
+                return `${hours} hr ${remainingMinutes} min`;
+            }
+        }
+        
+        // Function to format distance
+        function formatDistance(meters) {
+            if (meters < 1000) {
+                return `${Math.round(meters)} m`;
+            } else {
+                return `${(meters/1000).toFixed(1)} km`;
+            }
+        }
+        
+        // Generate turn-by-turn directions
+        function generateDirections(instructions) {
+            currentInstructions = instructions;
+            currentInstructionIndex = 0;
+            
+            const directionsList = document.getElementById('directions-list');
+            directionsList.innerHTML = '';
+            
+            instructions.forEach((instruction, index) => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item';
+                li.setAttribute('data-index', index);
+                
+                // Get appropriate icon based on direction type
+                let iconClass = 'arrow-right';
+                if (instruction.type.includes('Left')) iconClass = 'arrow-left';
+                else if (instruction.type.includes('Right')) iconClass = 'arrow-right';
+                else if (instruction.type.includes('SharpLeft')) iconClass = 'arrow-90deg-left';
+                else if (instruction.type.includes('SharpRight')) iconClass = 'arrow-90deg-right';
+                else if (instruction.type.includes('SlightLeft')) iconClass = 'arrow-up-left';
+                else if (instruction.type.includes('SlightRight')) iconClass = 'arrow-up-right';
+                else if (instruction.type.includes('Straight')) iconClass = 'arrow-up';
+                else if (instruction.type.includes('Roundabout')) iconClass = 'arrow-repeat';
+                else if (instruction.type.includes('Destination')) iconClass = 'geo-alt';
+                
+                li.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <div class="direction-icon">
+                            <i class="bi bi-${iconClass}"></i>
+                        </div>
+                        <div>
+                            <div>${instruction.text}</div>
+                            <small class="text-muted">${formatDistance(instruction.distance)}</small>
+                        </div>
+                    </div>
+                `;
+                
+                // Add click event to highlight the instruction on map
+                li.addEventListener('click', function() {
+                    // Highlight selected instruction
+                    const selected = document.querySelector('.list-group-item.active');
+                    if (selected) selected.classList.remove('active');
+                    li.classList.add('active');
+                    
+                    // Update current instruction index
+                    currentInstructionIndex = parseInt(li.getAttribute('data-index'));
+                    updateCurrentInstruction();
+                    
+                    // Pan map to the instruction location if coordinates available
+                    if (instruction.coord) {
+                        map.panTo([instruction.coord.lat, instruction.coord.lng]);
+                    }
+                });
+                
+                directionsList.appendChild(li);
+            });
+            
+            // Show navigation controls
+            document.getElementById('navigation-controls').style.display = 'block';
+            updateCurrentInstruction();
+        }
+        
+        // Update current instruction display
+        function updateCurrentInstruction() {
+            if (currentInstructions.length === 0) return;
+            
+            // Update step counter
+            const stepIndicator = document.getElementById('current-step');
+            stepIndicator.textContent = `Step ${currentInstructionIndex + 1}/${currentInstructions.length}`;
+            
+            // Update instruction text
+            const instructionDisplay = document.getElementById('current-instruction');
+            const instruction = currentInstructions[currentInstructionIndex];
+            instructionDisplay.innerHTML = `<i class="bi bi-info-circle me-1"></i> ${instruction.text} <small class="text-muted">(${formatDistance(instruction.distance)})</small>`;
+            
+            // Highlight current instruction in list
+            const directionsList = document.getElementById('directions-list');
+            const items = directionsList.querySelectorAll('.list-group-item');
+            items.forEach(item => item.classList.remove('active'));
+            
+            const currentItem = directionsList.querySelector(`[data-index="${currentInstructionIndex}"]`);
+            if (currentItem) {
+                currentItem.classList.add('active');
+                currentItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            
+            // Update navigation button states
+            document.getElementById('prev-instruction').disabled = currentInstructionIndex <= 0;
+            document.getElementById('next-instruction').disabled = currentInstructionIndex >= currentInstructions.length - 1;
+        }
+        
+        // Clear destination
+        function clearDestination() {
+            if (destinationMarker) {
+                map.removeLayer(destinationMarker);
+                destinationMarker = null;
+            }
+            
+            if (routeControl) {
+                map.removeControl(routeControl);
+                routeControl = null;
+            }
+            
+            document.getElementById('destinationInfo').style.display = 'none';
+            document.getElementById('clearDestination').style.display = 'none';
+            document.getElementById('toggleDirections').style.display = 'none';
+            document.getElementById('directions-panel').style.display = 'none';
+            document.getElementById('navigation-controls').style.display = 'none';
+            
+            // Clear instructions
+            currentInstructions = [];
+            document.getElementById('directions-list').innerHTML = '';
+        }
+        
+        // Toggle directions panel
+        document.getElementById('toggleDirections').addEventListener('click', function() {
+            const directionsPanel = document.getElementById('directions-panel');
+            if (directionsPanel.style.display === 'none' || !directionsPanel.style.display) {
+                directionsPanel.style.display = 'block';
+                this.innerHTML = '<i class="bi bi-signpost-2"></i> Hide Directions';
+            } else {
+                directionsPanel.style.display = 'none';
+                this.innerHTML = '<i class="bi bi-signpost-2"></i> Show Directions';
+            }
+        });
+        
+        // Close directions panel
+        document.getElementById('closeDirections').addEventListener('click', function() {
+            document.getElementById('directions-panel').style.display = 'none';
+            document.getElementById('toggleDirections').innerHTML = '<i class="bi bi-signpost-2"></i> Show Directions';
+        });
+        
+        // Navigation controls
+        document.getElementById('prev-instruction').addEventListener('click', function() {
+            if (currentInstructionIndex > 0) {
+                currentInstructionIndex--;
+                updateCurrentInstruction();
+            }
+        });
+        
+        document.getElementById('next-instruction').addEventListener('click', function() {
+            if (currentInstructionIndex < currentInstructions.length - 1) {
+                currentInstructionIndex++;
+                updateCurrentInstruction();
+            }
+        });
+        
+        // Initialize page
+        window.addEventListener('load', function() {
+            // Start tracking if active
+            if (document.getElementById('statusToggle').checked) {
+                startTracking();
+            }
