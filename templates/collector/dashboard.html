@@ -296,13 +296,22 @@
         .leaflet-routing-container {
             display: none;
         }
+
+        /* Styling for notification badge */
+        .notification-badge {
+            position: absolute;
+            top: 10px;
+            right: 5px;
+            font-size: 0.65em;
+            padding: 0.25em 0.4em;
+        }
     </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-success">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('collector_dashboard') }}">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="40">
+                <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="G-TRUCKS Logo" height="40">
                 G-TRUCKS Collector
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -321,11 +330,44 @@
                     </li>
                 </ul>
                 <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i> {{ current_user.username }}
+                    <li class="nav-item dropdown position-relative">
+                        <a class="nav-link dropdown-toggle" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-bell"></i>
+                            {% if notifications and notifications|length > 0 %}
+                                <span class="badge bg-danger notification-badge rounded-pill">{{ notifications|length }}</span>
+                            {% endif %}
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="notificationsDropdown">
+                            <li><h6 class="dropdown-header">Notifications</h6></li>
+                            {% if notifications %}
+                                {% for notification in notifications[:5] %} {# Show recent 5 notifications #}
+                                    <li><a class="dropdown-item" href="#">
+                                        <small>{{ notification.message }}</small><br>
+                                        <small class="text-muted">{{ notification.created_at.strftime('%b %d, %I:%M %p') }}</small>
+                                    </a></li>
+                                {% endfor %}
+                            {% else %}
+                                <li><span class="dropdown-item text-muted">No new notifications</span></li>
+                            {% endif %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-center" href="#">View all notifications</a></li> {# Link to a full notifications page if available #}
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            {% if avatar_path %}
+                                <img src="{{ url_for('static', filename='uploads/avatars/' + avatar_path) }}?v={{ now }}" 
+                                     alt="{{ current_user.username }}" 
+                                     class="rounded-circle me-1" 
+                                     style="width: 24px; height: 24px; object-fit: cover;"
+                                     onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}'; this.style.display='none'; document.getElementById('collectorFallbackIcon').style.display='inline-block';">
+                                <i id="collectorFallbackIcon" class="bi bi-person-circle" style="display: none;"></i>
+                            {% else %}
+                                <i class="bi bi-person-circle"></i>
+                            {% endif %}
+                            {{ current_user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li><a class="dropdown-item" href="{{ url_for('collector_profile') }}">Profile</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
@@ -524,6 +566,38 @@
                     </div>
                     <div class="card-footer text-center">
                         <a href="{{ url_for('collector_schedules') }}" class="btn btn-sm btn-outline-primary">View All Schedules</a>
+                    </div>
+                </div>
+
+                <!-- Recent Notifications Card -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0"><i class="bi bi-bell-fill"></i> Recent Notifications</h5>
+                        <a href="#" class="text-decoration-none small">View all</a> {# Link to a full notifications page #}
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush">
+                            {% if notifications and notifications|length > 0 %}
+                                {% for notification in notifications[:5] %} {# Display up to 5 recent notifications #}
+                                    <li class="list-group-item">
+                                        <div class="d-flex">
+                                            <div class="me-3 pt-1">
+                                                <i class="bi bi-info-circle text-primary"></i>
+                                            </div>
+                                            <div>
+                                                <p class="mb-0 small">{{ notification.message }}</p>
+                                                <small class="text-muted">{{ notification.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                            </div>
+                                        </div>
+                                    </li>
+                                {% endfor %}
+                            {% else %}
+                                <li class="list-group-item text-center py-3">
+                                    <i class="bi bi-bell-slash fs-4 text-muted mb-2"></i>
+                                    <p class="mb-0 text-muted small">No new notifications</p>
+                                </li>
+                            {% endif %}
+                        </ul>
                     </div>
                 </div>
                 

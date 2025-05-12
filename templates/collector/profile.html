@@ -12,7 +12,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-success">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('collector_dashboard') }}">
-                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="40">
+                <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="G-TRUCKS Logo" height="40">
                 G-TRUCKS Collector
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -176,7 +176,8 @@
                         <h5 class="card-title mb-0">Account Security</h5>
                     </div>
                     <div class="card-body">
-                        <form method="POST" action="{{ url_for('change_password') }}">
+                        <form method="POST" action="{{ url_for('collector_profile') }}">
+                            <input type="hidden" name="form_type" value="password_change">
                             <div class="mb-3">
                                 <label for="currentPassword" class="form-label">Current Password</label>
                                 <input type="password" class="form-control" id="currentPassword" name="currentPassword" required>
@@ -280,13 +281,15 @@
         });
         
         // Password confirmation validation
-        document.querySelector('form[action="{{ url_for("change_password") }}"]').addEventListener('submit', function(event) {
-            const newPassword = document.getElementById('newPassword').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            
-            if (newPassword !== confirmPassword) {
-                event.preventDefault();
-                alert('New password and confirmation password do not match');
+        document.querySelector('form[action="{{ url_for("collector_profile") }}"][method="POST"]').addEventListener('submit', function(event) {
+            if (this.querySelector('input[name="form_type"]')?.value === 'password_change') {
+                const newPassword = document.getElementById('newPassword').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                
+                if (newPassword !== confirmPassword) {
+                    event.preventDefault();
+                    alert('New password and confirmation password do not match');
+                }
             }
         });
     </script>
