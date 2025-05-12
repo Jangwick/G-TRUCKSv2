@@ -1,8 +1,9 @@
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, Blueprint
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timezone  # Add this import for UTC timezone
+from datetime import datetime, timezone, timedelta, time  # Add this import for UTC timezone and timedelta
+from datetime import time as datetime_time  # Import time class from datetime with a different name
 import os
 from markupsafe import Markup
 from werkzeug.utils import secure_filename  # Make sure this import is included
@@ -647,7 +648,32 @@ def collector_schedules():
     # Get all schedules for this collector
     schedules = Schedule.query.filter_by(collector_id=collector.id).order_by(Schedule.day_of_week).all()
     
-    return render_template('collector/schedules.html', collector=collector, schedules=schedules)
+    # Fetch ALL barangays from admin system, not just the assigned one
+    admin_barangays = Barangay.query.order_by(Barangay.district, Barangay.name).all()
+    
+    # Get statistics for the sidebar
+    today = datetime.now().date()
+    start_of_today = datetime.combine(today, datetime_time.min)  # Using datetime_time.min instead of time.min
+    end_of_today = datetime.combine(today, datetime_time.max)    # Using datetime_time.max instead of time.max
+    start_of_tomorrow = datetime.combine(today + timedelta(days=1), datetime_time.min)
+    end_of_tomorrow = datetime.combine(today + timedelta(days=1), datetime_time.max)
+    end_of_week = datetime.combine(today + timedelta(days=7), datetime_time.max)
+    
+    stats = {
+        'completed': Schedule.query.filter_by(collector_id=collector.id, status='completed').filter(Schedule.time_start >= start_of_today, Schedule.time_start <= end_of_today).count(),
+        'in_progress': Schedule.query.filter_by(collector_id=collector.id, status='in-progress').filter(Schedule.time_start >= start_of_today, Schedule.time_start <= end_of_today).count(),
+        'scheduled': Schedule.query.filter_by(collector_id=collector.id, status='scheduled').filter(Schedule.time_start >= start_of_today, Schedule.time_start <= end_of_today).count(),
+        'today_remaining': Schedule.query.filter_by(collector_id=collector.id).filter(Schedule.time_start >= start_of_today, Schedule.time_start <= end_of_today).filter(Schedule.status != 'completed').count(),
+        'tomorrow_count': Schedule.query.filter_by(collector_id=collector.id).filter(Schedule.time_start >= start_of_tomorrow, Schedule.time_start <= end_of_tomorrow).count(),
+        'this_week_count': Schedule.query.filter_by(collector_id=collector.id).filter(Schedule.time_start >= start_of_today, Schedule.time_start <= end_of_week).count()
+    }
+    
+    return render_template('collector/schedules.html', 
+                          collector=collector, 
+                          schedules=schedules,
+                          admin_barangays=admin_barangays,
+                          stats=stats,
+                          now=datetime.now().date())
 
 @app.route('/collector/reports')
 @login_required
@@ -933,6 +959,279 @@ def inject_avatar():
         'avatar_path': None, 
         'now': int(time.time())
     }
+
+# New API endpoint to get admin schedules for a specific barangay
+@app.route('/api/admin/schedules')
+@login_required
+def api_admin_schedules():
+    barangay_id = request.args.get('barangay_id')
+    
+    if not barangay_id:
+        return jsonify({'error': 'Barangay ID is required'}), 400
+    
+    # Fetch admin schedules for this barangay that don't have collectors assigned
+    admin_schedules = AdminSchedule.query.filter_by(barangay_id=barangay_id, collector_id=None).all()
+    
+    schedules_data = []
+    for schedule in admin_schedules:
+        schedules_data.append({
+            'id': schedule.id,
+            'title': f"{schedule.title or 'Collection'} - {schedule.barangay.name}",
+            'start': schedule.start_time.isoformat(),
+            'end': schedule.end_time.isoformat(),
+            'barangay_id': schedule.barangay_id,
+            'notes': schedule.notes
+        })
+    
+    return jsonify({'schedules': schedules_data})
+
+@app.route('/api/collector/link-admin-schedule', methods=['POST'])
+@login_required
+def link_admin_schedule():
+    data = request.json
+    
+    if not data or not data.get('collector_id') or not data.get('admin_schedule_id'):
+        return jsonify({'error': 'Missing required data'}), 400
+    
+    collector_id = data['collector_id']
+    admin_schedule_id = data['admin_schedule_id']
+    
+    # Verify collector is authorized for this operation
+    if int(collector_id) != current_user.collector.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    try:
+        # Get the admin schedule
+        admin_schedule = AdminSchedule.query.get(admin_schedule_id)
+        if not admin_schedule:
+            return jsonify({'error': 'Admin schedule not found'}), 404
+        
+        # Create a new collector schedule linked to the admin one
+        collector_schedule = Schedule(
+            collector_id=collector_id,
+            barangay_id=admin_schedule.barangay_id,
+            date=admin_schedule.start_time.date(),
+            time_start=admin_schedule.start_time.time(),
+            time_end=admin_schedule.end_time.time(),
+            status='scheduled',
+            notes=f"Linked to admin schedule: {admin_schedule.title or 'Collection'}",
+            admin_schedule_id=admin_schedule_id
+        )
+        
+        # Update the admin schedule to link it to this collector
+        admin_schedule.collector_id = collector_id
+        
+        db.session.add(collector_schedule)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Schedule linked successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# Route to sync with admin schedules
+@app.route('/api/collector/sync-admin-schedules')
+@login_required
+def sync_admin_schedules():
+    collector = Collector.query.filter_by(user_id=current_user.id).first()
+    
+    # Get all admin schedules relevant to this collector's barangay
+    admin_schedules = AdminSchedule.query.filter(
+        (AdminSchedule.barangay_id == collector.assigned_barangay_id) &
+        (AdminSchedule.collector_id.is_(None) | (AdminSchedule.collector_id == collector.id))
+    ).all()
+    
+    schedules_data = []
+    for schedule in admin_schedules:
+        schedules_data.append({
+            'id': schedule.id,
+            'title': schedule.title or f"Collection for {schedule.barangay.name}",
+            'start': schedule.start_time.isoformat(),
+            'end': schedule.end_time.isoformat(),
+            'barangay_id': schedule.barangay_id,
+            'status': 'scheduled',
+            'notes': schedule.notes,
+            'contact': schedule.contact_info,
+            'duration': (schedule.end_time - schedule.start_time).seconds / 60,  # duration in minutes
+            'progress': 0
+        })
+    
+    return jsonify({'schedules': schedules_data})
+
+# Add a new API endpoint to get detailed collector information including avatar
+@app.route('/api/collector-details')
+def api_collector_details():
+    collector_id = request.args.get('id')
+    
+    if not collector_id:
+        return jsonify({'error': 'Collector ID is required'}), 400
+    
+    # Fetch collector information from the database with eager loading for user
+    collector = Collector.query.options(
+        db.joinedload(Collector.user)  # Ensure user data is loaded
+    ).get(collector_id)
+    
+    if not collector:
+        return jsonify({'error': 'Collector not found'}), 404
+    
+    # Add debugging to check avatar path
+    avatar_path = None
+    if collector.user:
+        avatar_path = collector.user.avatar_path
+        # Log the avatar path to help troubleshoot
+        app.logger.info(f"Got avatar path for collector {collector_id}: {avatar_path}")
+    
+    # Compile detailed collector information
+    collector_data = {
+        'id': collector.id,
+        'name': collector.user.username if collector.user else 'Unknown Collector',
+        'vehicle_id': collector.vehicle_id,
+        'barangay': collector.assigned_barangay.name if collector.assigned_barangay else 'Unassigned',
+        'barangay_id': collector.assigned_barangay_id,
+        'status': 'active' if collector.is_active else 'inactive',
+        'phone': collector.user.phone if collector.user else None,
+        'lat': collector.last_lat,
+        'lng': collector.last_lng,
+        'last_updated': collector.last_updated.strftime('%Y-%m-%d %H:%M:%S') if collector.last_updated else None,
+        'avatar_path': avatar_path,
+    }
+    
+    return jsonify(collector_data)
+
+# Update the existing collectors-location endpoint to include avatar information
+@app.route('/api/collectors-location')
+def api_collectors_location():
+    collector_id = request.args.get('id')
+    
+    if collector_id:
+        # Specific collector request
+        collector = Collector.query.get(collector_id)
+        if not collector:
+            return jsonify([])
+        
+        # Include avatar path in the response
+        return jsonify([{
+            'id': collector.id,
+            'name': collector.user.username if collector.user else 'Unknown Collector',
+            'vehicle_id': collector.vehicle_id,
+            'barangay': collector.assigned_barangay.name if collector.assigned_barangay else 'Unassigned',
+            'barangay_id': collector.assigned_barangay_id,
+            'lat': collector.last_lat,
+            'lng': collector.last_lng,
+            'last_updated': collector.last_updated.strftime('%Y-%m-%d %H:%M:%S') if collector.last_updated else None,
+            'avatar_path': collector.user.avatar_path if collector.user and collector.user.avatar_path else None,
+        }])
+    else:
+        # All active collectors
+        collectors = Collector.query.filter_by(is_active=True).all()
+        return jsonify([{
+            'id': c.id,
+            'name': c.user.username if c.user else 'Unknown Collector',
+            'vehicle_id': c.vehicle_id,
+            'barangay': c.assigned_barangay.name if c.assigned_barangay else 'Unassigned',
+            'barangay_id': c.assigned_barangay_id,
+            'lat': c.last_lat,
+            'lng': c.last_lng,
+            'last_updated': c.last_updated.strftime('%Y-%m-%d %H:%M:%S') if c.last_updated else None,
+            'avatar_path': c.user.avatar_path if c.user and c.user.avatar_path else None,
+        } for c in collectors])
+
+# Enhanced API endpoint to get collector details with avatar information
+@app.route('/api/get-collector-details', endpoint='fetch_specific_collector_details') # Added unique endpoint name
+def api_collector_details():
+    collector_id = request.args.get('id')
+    
+    if not collector_id:
+        return jsonify({'error': 'Collector ID is required'}), 400
+    
+    # Fetch collector information with user relationship eager loaded
+    try:
+        collector = Collector.query.options(
+            db.joinedload(Collector.user)  # Ensure user data is loaded
+        ).get(collector_id)
+        
+        if not collector:
+            return jsonify({'error': 'Collector not found'}), 404
+        
+        # Enhanced debugging for avatar path issues
+        avatar_path = None
+        if collector.user:
+            avatar_path = collector.user.avatar_path
+            app.logger.info(f"Collector {collector_id} has avatar_path: {avatar_path}")
+            
+            # Check if the avatar file actually exists
+            if avatar_path:
+                avatar_full_path = os.path.join(app.root_path, 'static/uploads/avatars', avatar_path)
+                if not os.path.isfile(avatar_full_path):
+                    app.logger.warning(f"Avatar file doesn't exist: {avatar_full_path}")
+                else:
+                    app.logger.info(f"Avatar file exists: {avatar_full_path}")
+        else:
+            app.logger.warning(f"Collector {collector_id} has no associated user record")
+        
+        # Compile collector data including avatar path
+        collector_data = {
+            'id': collector.id,
+            'name': collector.user.username if collector.user else 'Unknown',
+            'vehicle_id': collector.vehicle_id,
+            'barangay': collector.assigned_barangay.name if collector.assigned_barangay else None,
+            'barangay_id': collector.assigned_barangay_id,
+            'status': 'active' if collector.is_active else 'inactive',
+            'phone': collector.user.phone if collector.user else None,
+            'lat': collector.last_lat or 14.676,  # Provide default coords if none
+            'lng': collector.last_lng or 121.043,
+            'last_updated': collector.last_updated.strftime('%Y-%m-%d %H:%M:%S') if collector.last_updated else None,
+            'avatar_path': avatar_path,  # Direct avatar path from user model
+        }
+        
+        return jsonify(collector_data)
+        
+    except Exception as e:
+        app.logger.error(f"Error fetching collector details: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+collector_api = Blueprint('collector_api', __name__)
+
+@collector_api.route('/collector-details')
+def api_collector_details():
+    collector_id = request.args.get('id')
+    
+    if not collector_id:
+        return jsonify({'error': 'Collector ID is required'}), 400
+    
+    # Fetch collector information from the database with eager loading for user
+    collector = Collector.query.options(
+        db.joinedload(Collector.user)  # Ensure user data is loaded
+    ).get(collector_id)
+    
+    if not collector:
+        return jsonify({'error': 'Collector not found'}), 404
+    
+    # Add debugging to check avatar path
+    avatar_path = None
+    if collector.user:
+        avatar_path = collector.user.avatar_path
+        # Log the avatar path to help troubleshoot
+        app.logger.info(f"Got avatar path for collector {collector_id}: {avatar_path}")
+    
+    # Compile detailed collector information
+    collector_data = {
+        'id': collector.id,
+        'name': collector.user.username if collector.user else 'Unknown Collector',
+        'vehicle_id': collector.vehicle_id,
+        'barangay': collector.assigned_barangay.name if collector.assigned_barangay else 'Unassigned',
+        'barangay_id': collector.assigned_barangay_id,
+        'status': 'active' if collector.is_active else 'inactive',
+        'phone': collector.user.phone if collector.user else None,
+        'lat': collector.last_lat,
+        'lng': collector.last_lng,
+        'last_updated': collector.last_updated.strftime('%Y-%m-%d %H:%M:%S') if collector.last_updated else None,
+        'avatar_path': avatar_path,
+    }
+    
+    return jsonify(collector_data)
+
+app.register_blueprint(collector_api, url_prefix='/api')
 
 if __name__ == '__main__':
     app.run(debug=True)

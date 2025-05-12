@@ -400,9 +400,29 @@
                             <button id="clearDestination" class="btn btn-outline-secondary" style="display: none;">
                                 <i class="bi bi-x-circle"></i> Clear Destination
                             </button>
+                            <!-- Add navigation controls -->
+                            <button id="startNavigation" class="btn btn-success" style="display: none;">
+                                <i class="bi bi-play-fill"></i> Start Navigation
+                            </button>
+                            <button id="pauseNavigation" class="btn btn-warning" style="display: none;">
+                                <i class="bi bi-pause-fill"></i> Pause
+                            </button>
+                            <button id="stopNavigation" class="btn btn-danger" style="display: none;">
+                                <i class="bi bi-stop-fill"></i> Stop
+                            </button>
                             <button id="reportIssue" class="btn btn-outline-warning">
                                 <i class="bi bi-exclamation-triangle"></i> Report Issue
                             </button>
+                        </div>
+                        <!-- Add navigation progress bar -->
+                        <div id="navigationProgress" class="mt-3" style="display: none;">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <small id="routeProgressText">Progress: 0%</small>
+                                <small id="routeRemainingTime">Remaining: calculating...</small>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar bg-success" id="routeProgressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -411,7 +431,7 @@
                 
                 {% if schedules %}
                     {% for schedule in schedules %}
-                        <div class="card task-card {{ 'completed' if schedule.status == 'completed' else ('active' if schedule.status == 'in-progress' else 'pending') }}">
+                        <div class="card task-card {{ 'completed' if schedule.status == 'completed' else ('active' if schedule.status == 'in-progress' else 'pending') }}" data-id="{{ schedule.id }}" onclick="navigateToTask('{{ schedule.id }}', '{{ schedule.barangay.name }}')">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <h5 class="card-title">{{ schedule.barangay.name }}</h5>
@@ -425,21 +445,24 @@
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div class="btn-group">
                                         {% if schedule.status == 'scheduled' %}
-                                            <button class="btn btn-sm btn-outline-primary start-task" data-id="{{ schedule.id }}">
+                                            <button class="btn btn-sm btn-outline-primary start-task" data-id="{{ schedule.id }}" onclick="event.stopPropagation();">
                                                 <i class="bi bi-play-fill"></i> Start
                                             </button>
                                         {% elif schedule.status == 'in-progress' %}
-                                            <button class="btn btn-sm btn-outline-success complete-task" data-id="{{ schedule.id }}">
+                                            <button class="btn btn-sm btn-outline-success complete-task" data-id="{{ schedule.id }}" onclick="event.stopPropagation();">
                                                 <i class="bi bi-check2"></i> Complete
                                             </button>
-                                            <button class="btn btn-sm btn-outline-danger pause-task" data-id="{{ schedule.id }}">
+                                            <button class="btn btn-sm btn-outline-danger pause-task" data-id="{{ schedule.id }}" onclick="event.stopPropagation();">
                                                 <i class="bi bi-pause-fill"></i> Pause
                                             </button>
                                         {% else %}
-                                            <button class="btn btn-sm btn-outline-secondary" disabled>
+                                            <button class="btn btn-sm btn-outline-secondary" disabled onclick="event.stopPropagation();">
                                                 <i class="bi bi-check2-all"></i> Completed
                                             </button>
                                         {% endif %}
+                                        <button class="btn btn-sm btn-outline-info navigate-to-task" onclick="event.stopPropagation(); navigateToTask('{{ schedule.id }}', '{{ schedule.barangay.name }}');">
+                                            <i class="bi bi-map"></i> Navigate
+                                        </button>
                                     </div>
                                     <small class="text-muted">Est. duration: 2 hours</small>
                                 </div>
@@ -705,6 +728,11 @@
         // Variables for routing
         let routeControl = null;
         let routeInstructions = [];
+        let routeCoordinates = [];
+        let currentRouteIndex = 0;
+        let isNavigating = false;
+        let navigationInterval = null;
+        let navigationSpeed = 30; // km/h - speed for navigation simulation
 
         // Start or stop location tracking based on toggle
         document.getElementById('statusToggle').addEventListener('change', function() {
@@ -934,6 +962,9 @@
 
         // Function to set destination
         function setDestination(lat, lng, name) {
+            // Stop any ongoing navigation
+            stopNavigation();
+            
             // Create custom destination icon
             const destinationIcon = L.divIcon({
                 className: 'destination-marker',
@@ -1013,6 +1044,11 @@
                 const routes = e.routes;
                 const route = routes[0]; // Get the first route
                 
+                // Store route coordinates for navigation simulation
+                routeCoordinates = route.coordinates || [];
+                console.log("Route found with", routeCoordinates.length, "coordinates");
+                currentRouteIndex = 0;
+                
                 // Calculate ETA
                 const distanceInMeters = route.summary.totalDistance;
                 const distanceText = distanceInMeters > 1000 ? 
@@ -1030,6 +1066,9 @@
                 // Extract and display turn-by-turn instructions
                 const instructions = route.instructions || [];
                 displayRouteInstructions(instructions);
+                
+                // Show navigation button once route is calculated
+                document.getElementById('startNavigation').style.display = 'inline-block';
             });
         }
         
@@ -1106,6 +1145,207 @@
             }
         }
         
+        // Clear destination with updated function to clear navigation
+        function clearDestination() {
+            // Stop navigation if it's running
+            stopNavigation();
+            currentRouteIndex = 0;
+            routeCoordinates = [];
+            
+            if (destinationMarker) {
+                map.removeLayer(destinationMarker);
+                destinationMarker = null;
+            }
+            
+            if (routeControl) {
+                map.removeControl(routeControl);
+                routeControl = null;
+            }
+            
+            document.getElementById('destinationInfo').style.display = 'none';
+            document.getElementById('clearDestination').style.display = 'none';
+            document.getElementById('route-instructions-container').style.display = 'none';
+            document.getElementById('startNavigation').style.display = 'none';
+        }
+        
+        // Begin navigation along the route
+        function startNavigation() {
+            if (!routeCoordinates || routeCoordinates.length < 2) {
+                console.error("No route coordinates available for navigation");
+                return;
+            }
+            
+            if (isNavigating) {
+                console.log("Already navigating");
+                return;
+            }
+            
+            console.log("Starting navigation with", routeCoordinates.length, "points");
+            isNavigating = true;
+            document.getElementById('startNavigation').style.display = 'none';
+            document.getElementById('pauseNavigation').style.display = 'inline-block';
+            document.getElementById('stopNavigation').style.display = 'inline-block';
+            document.getElementById('navigationProgress').style.display = 'block';
+            
+            // Disable location watching during simulation
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            
+            // Reset index to start from beginning
+            currentRouteIndex = 0;
+            
+            // Define the movement function
+            const simulateTruckMovement = () => {
+                if (currentRouteIndex >= routeCoordinates.length - 1) {
+                    console.log("Navigation complete - Arrived at destination");
+                    
+                    // Keep the truck at the destination instead of stopping navigation
+                    isNavigating = false;
+                    if (navigationInterval) {
+                        clearTimeout(navigationInterval);
+                        navigationInterval = null;
+                    }
+                    
+                    // Update UI to show arrival
+                    document.getElementById('routeProgressText').textContent = 'Arrived at destination!';
+                    document.getElementById('routeRemainingTime').textContent = '';
+                    document.getElementById('routeProgressBar').style.width = '100%';
+                    document.getElementById('routeProgressBar').setAttribute('aria-valuenow', 100);
+                    
+                    // Change button states
+                    document.getElementById('startNavigation').style.display = 'none';
+                    document.getElementById('pauseNavigation').style.display = 'none';
+                    document.getElementById('stopNavigation').style.display = 'inline-block';
+                    
+                    // Show arrival notification
+                    showArrivalNotification();
+                    
+                    // If there's an active task linked to this destination, update its UI
+                    updateActiveTaskStatus();
+                    
+                    return;
+                }
+                
+                const currentPoint = routeCoordinates[currentRouteIndex];
+                const nextPoint = routeCoordinates[currentRouteIndex + 1];
+                
+                console.log(`Moving from point ${currentRouteIndex} to ${currentRouteIndex + 1}`);
+                
+                // Update truck marker position
+                if (currentLocationMarker) {
+                    currentLocationMarker.setLatLng([currentPoint.lat, currentPoint.lng]);
+                    
+                    // Center map on truck during navigation with slight offset for better view
+                    map.panTo([
+                        currentPoint.lat, 
+                        currentPoint.lng
+                    ]);
+                    
+                    // Calculate progress percentage
+                    const progressPercent = Math.min(Math.round((currentRouteIndex / (routeCoordinates.length - 1)) * 100), 100);
+                    document.getElementById('routeProgressText').textContent = `Progress: ${progressPercent}%`;
+                    document.getElementById('routeProgressBar').style.width = `${progressPercent}%`;
+                    document.getElementById('routeProgressBar').setAttribute('aria-valuenow', progressPercent);
+                    
+                    // Calculate remaining time
+                    const remainingPoints = routeCoordinates.length - currentRouteIndex - 1;
+                    const remainingDistance = calculateTotalDistance(
+                        routeCoordinates.slice(currentRouteIndex)
+                    );
+                    const remainingTimeHours = remainingDistance / 1000 / navigationSpeed;
+                    const remainingTimeMinutes = Math.ceil(remainingTimeHours * 60);
+                    
+                    document.getElementById('routeRemainingTime').textContent = 
+                        remainingTimeMinutes > 1 ? 
+                            `Remaining: ~${remainingTimeMinutes} minutes` : 
+                            `Remaining: <1 minute`;
+                }
+                
+                // Calculate distance for delay
+                const distance = calculateDistance(
+                    currentPoint.lat, currentPoint.lng,
+                    nextPoint.lat, nextPoint.lng
+                );
+                
+                // Time to travel this segment at the given speed
+                // Speed in km/h, distance in meters
+                const speedInMetersPerSecond = navigationSpeed * 1000 / 3600; // Convert km/h to m/s
+                const timeMs = (distance / speedInMetersPerSecond) * 1000; // Time in milliseconds
+                
+                // For demo purposes, we'll speed up the simulation but keep it proportional to distance
+                const simulationFactor = 0.1; // 10x speed for demo
+                const moveDelay = Math.max(100, timeMs * simulationFactor); // Minimum 100ms for visual smoothness
+                
+                console.log(`Moving ${distance.toFixed(2)}m, delay: ${moveDelay.toFixed(0)}ms`);
+                
+                // Move to next point after calculated time delay
+                currentRouteIndex++;
+                navigationInterval = setTimeout(simulateTruckMovement, moveDelay);
+            };
+            
+            // Start the simulation
+            simulateTruckMovement();
+        }
+        
+        // Calculate total distance of a path
+        function calculateTotalDistance(points) {
+            let totalDistance = 0;
+            for (let i = 0; i < points.length - 1; i++) {
+                totalDistance += calculateDistance(
+                    points[i].lat, points[i].lng,
+                    points[i+1].lat, points[i+1].lng
+                );
+            }
+            return totalDistance;
+        }
+        
+        // Pause ongoing navigation
+        function pauseNavigation() {
+            if (navigationInterval) {
+                clearTimeout(navigationInterval);
+                navigationInterval = null;
+            }
+            
+            document.getElementById('startNavigation').style.display = 'inline-block';
+            document.getElementById('pauseNavigation').style.display = 'none';
+        }
+        
+        // Stop navigation and reset
+        function stopNavigation() {
+            isNavigating = false;
+            if (navigationInterval) {
+                clearTimeout(navigationInterval);
+                navigationInterval = null;
+            }
+            
+            // Reset navigation controls but don't clear destination
+            document.getElementById('startNavigation').style.display = routeCoordinates.length > 0 ? 'inline-block' : 'none';
+            document.getElementById('pauseNavigation').style.display = 'none';
+            document.getElementById('stopNavigation').style.display = 'none';
+            document.getElementById('navigationProgress').style.display = 'none';
+            
+            // Re-enable location tracking but keep truck at current position
+            startTracking();
+        }
+        
+        // Helper function to calculate distance between points
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Earth radius in meters
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c; // in meters
+        }
+        
         // Clear destination with updated function to clear instructions
         function clearDestination() {
             if (destinationMarker) {
@@ -1121,6 +1361,7 @@
             document.getElementById('destinationInfo').style.display = 'none';
             document.getElementById('clearDestination').style.display = 'none';
             document.getElementById('route-instructions-container').style.display = 'none';
+            document.getElementById('startNavigation').style.display = 'none';
         }
 
         // Set destination button
@@ -1182,7 +1423,499 @@
             var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
+
+            // Add event listeners for navigation controls
+            document.getElementById('startNavigation').addEventListener('click', startNavigation);
+            document.getElementById('pauseNavigation').addEventListener('click', pauseNavigation);
+            document.getElementById('stopNavigation').addEventListener('click', stopNavigation);
+            
+            // Debug message
+            console.log("Navigation controls initialized");
+            
+            // Add event listeners for collection tasks
+            document.querySelectorAll('.task-card').forEach(taskCard => {
+                // Add data attribute for task ID if not already present
+                if (!taskCard.hasAttribute('data-id')) {
+                    const taskId = taskCard.querySelector('button[data-id]')?.getAttribute('data-id') || 
+                                  Math.random().toString(36).substring(2, 9); // Generate random ID if none exists
+                    taskCard.setAttribute('data-id', taskId);
+                }
+                
+                // Add navigation buttons to each task card
+                const cardBody = taskCard.querySelector('.card-body');
+                const buttonGroup = cardBody.querySelector('.btn-group');
+                
+                // Only add the navigate button if it doesn't already exist
+                if (!buttonGroup.querySelector('.navigate-to-task')) {
+                    const navigateBtn = document.createElement('button');
+                    navigateBtn.className = 'btn btn-sm btn-outline-info navigate-to-task';
+                    navigateBtn.innerHTML = '<i class="bi bi-map"></i> Navigate';
+                    buttonGroup.appendChild(navigateBtn);
+                    
+                    // Add click handler to navigate button
+                    navigateBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        const taskId = taskCard.getAttribute('data-id');
+                        const barangayName = taskCard.querySelector('.card-title').textContent.trim();
+                        navigateToTask(taskId, barangayName);
+                    });
+                }
+            });
         });
+        
+        // Show notification when arrived at destination
+        function showArrivalNotification() {
+            // Create a toast notification for arrival
+            const arrivalToast = document.createElement('div');
+            arrivalToast.className = 'toast align-items-center text-bg-success border-0 position-fixed bottom-0 end-0 m-3';
+            arrivalToast.setAttribute('role', 'alert');
+            arrivalToast.setAttribute('aria-live', 'assertive');
+            arrivalToast.setAttribute('aria-atomic', 'true');
+            
+            arrivalToast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        You have arrived at your destination!
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+            
+            document.body.appendChild(arrivalToast);
+            const toast = new bootstrap.Toast(arrivalToast);
+            toast.show();
+            
+            // Remove from DOM after hiding
+            arrivalToast.addEventListener('hidden.bs.toast', function() {
+                arrivalToast.remove();
+            });
+        }
+        
+        // Update the currently active task's status when navigation completes
+        function updateActiveTaskStatus() {
+            const activeTask = document.querySelector('.task-card.active');
+            if (activeTask && currentDestinationTaskId) {
+                // If the active task matches our current destination, mark as completed
+                if (activeTask.getAttribute('data-id') === currentDestinationTaskId) {
+                    const completeBtn = activeTask.querySelector('.complete-task');
+                    if (completeBtn) {
+                        // Trigger the complete action
+                        completeBtn.click();
+                    }
+                }
+            }
+        }
+        
+        // Variable to track which task is linked to current destination
+        let currentDestinationTaskId = null;
+        
+        // Function to navigate to a task's location
+        function navigateToTask(taskId, barangayName) {
+            // Store the task ID to reference when navigation completes
+            currentDestinationTaskId = taskId;
+            
+            // First, find the task's actual coordinates
+            // For demo purposes, we're generating random coordinates near the current location
+            if (currentLocationMarker) {
+                const currentPos = currentLocationMarker.getLatLng();
+                
+                // Use the task's actual coordinates if available in your backend
+                // Here we're just creating random coordinates around the current position
+                const destinationLat = currentPos.lat + (Math.random() - 0.5) * 0.01;
+                const destinationLng = currentPos.lng + (Math.random() - 0.5) * 0.01;
+                
+                // Set the destination with the task's barangay name
+                setDestination(destinationLat, destinationLng, `Collection: ${barangayName}`);
+                
+                // Start navigation automatically
+                setTimeout(() => {
+                    document.getElementById('startNavigation').click();
+                }, 1000);
+                
+                // Highlight this task card
+                document.querySelectorAll('.task-card').forEach(card => {
+                    card.classList.remove('border-primary');
+                });
+                
+                const taskCard = document.querySelector(`.task-card[data-id="${taskId}"]`);
+                if (taskCard) {
+                    taskCard.classList.add('border-primary');
+                }
+            }
+        }
+        
+        // Global variable to store task locations for navigation
+        const taskLocations = {
+            {% for schedule in schedules %}
+                "{{ schedule.id }}": {
+                    name: "{{ schedule.barangay.name }}",
+                    // Use actual coordinates from database if available
+                    // Otherwise use these coordinates from the barangay's central point
+                    lat: {{ schedule.latitude|default(schedule.barangay.latitude|default(14.676 + loop.index0 * 0.002)) }},
+                    lng: {{ schedule.longitude|default(schedule.barangay.longitude|default(121.043 + loop.index0 * 0.003)) }},
+                    address: "{{ schedule.address|default(schedule.barangay.name + ' Collection Area') }}",
+                    status: "{{ schedule.status }}"
+                },
+            {% endfor %}
+        };
+
+        // Geocoding service to get accurate coordinates from addresses
+        async function geocodeAddress(address) {
+            try {
+                // Using Nominatim OpenStreetMap geocoding service
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
+                const data = await response.json();
+                
+                if (data && data.length > 0) {
+                    return {
+                        lat: parseFloat(data[0].lat),
+                        lng: parseFloat(data[0].lon),
+                        display_name: data[0].display_name
+                    };
+                }
+                return null;
+            } catch (error) {
+                console.error("Geocoding error:", error);
+                return null;
+            }
+        }
+
+        // Function to navigate to a task's location with improved accuracy
+        async function navigateToTask(taskId, barangayName) {
+            // Store the task ID to reference when navigation completes
+            currentDestinationTaskId = taskId;
+            
+            // Show loading indicator
+            const loadingToast = document.createElement('div');
+            loadingToast.className = 'toast align-items-center text-bg-info border-0 position-fixed top-0 end-0 m-3';
+            loadingToast.setAttribute('role', 'alert');
+            loadingToast.setAttribute('aria-live', 'assertive');
+            loadingToast.setAttribute('aria-atomic', 'true');
+            loadingToast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Finding the best route to ${barangayName}...
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(loadingToast);
+            const toast = new bootstrap.Toast(loadingToast);
+            toast.show();
+            
+            try {
+                let destinationLat, destinationLng, locationName;
+                
+                // Use stored task locations if available
+                if (taskLocations[taskId]) {
+                    destinationLat = taskLocations[taskId].lat;
+                    destinationLng = taskLocations[taskId].lng;
+                    locationName = `Collection: ${taskLocations[taskId].name}`;
+                    
+                    // Try to geocode the address for more accuracy if we have one
+                    if (taskLocations[taskId].address) {
+                        const geocoded = await geocodeAddress(taskLocations[taskId].address + ", " + barangayName);
+                        if (geocoded) {
+                            destinationLat = geocoded.lat;
+                            destinationLng = geocoded.lng;
+                            locationName = `Collection: ${geocoded.display_name}`;
+                            console.log("Using geocoded location:", geocoded);
+                        }
+                    }
+                } else if (currentLocationMarker) {
+                    // Fallback: Find the barangay's location using geocoding
+                    const geocoded = await geocodeAddress(barangayName + ", Metro Manila, Philippines");
+                    
+                    if (geocoded) {
+                        destinationLat = geocoded.lat;
+                        destinationLng = geocoded.lng;
+                        locationName = `Collection: ${geocoded.display_name}`;
+                        console.log("Using geocoded barangay:", geocoded);
+                    } else {
+                        // Last resort fallback
+                        const currentPos = currentLocationMarker.getLatLng();
+                        destinationLat = currentPos.lat + 0.008; // Approximately 880m north
+                        destinationLng = currentPos.lng + 0.006; // Approximately 660m east
+                        locationName = `Collection: ${barangayName}`;
+                        console.warn("Using fallback location calculation");
+                    }
+                } else {
+                    toast.dispose();
+                    loadingToast.remove();
+                    alert("Cannot navigate: Your current location is not available.");
+                    return;
+                }
+                
+                // Set the destination with improved coordinates
+                setDestination(destinationLat, destinationLng, locationName);
+                
+                // Store this location in our task locations for future reference
+                if (!taskLocations[taskId]) {
+                    taskLocations[taskId] = {
+                        name: barangayName,
+                        lat: destinationLat, 
+                        lng: destinationLng,
+                        address: locationName
+                    };
+                }
+                
+                // Start navigation automatically after route is calculated
+                // We'll use an observer to wait for the route to be calculated
+                const checkRouteExists = setInterval(() => {
+                    if (routeCoordinates && routeCoordinates.length > 0) {
+                        clearInterval(checkRouteExists);
+                        setTimeout(() => {
+                            document.getElementById('startNavigation').click();
+                            toast.dispose();
+                            loadingToast.remove();
+                        }, 800);
+                    }
+                }, 100);
+                
+                // Set timeout in case routing takes too long
+                setTimeout(() => {
+                    clearInterval(checkRouteExists);
+                    toast.dispose();
+                    loadingToast.remove();
+                }, 10000);
+                
+                // Highlight this task card
+                document.querySelectorAll('.task-card').forEach(card => {
+                    card.classList.remove('border-primary');
+                });
+                
+                const taskCard = document.querySelector(`.task-card[data-id="${taskId}"]`);
+                if (taskCard) {
+                    taskCard.classList.add('border-primary');
+                    
+                    // Mark task as in-progress if scheduled
+                    if (taskCard.classList.contains('pending')) {
+                        const startTaskBtn = taskCard.querySelector('.start-task');
+                        if (startTaskBtn) {
+                            startTaskBtn.click();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Navigation error:", error);
+                toast.dispose();
+                loadingToast.remove();
+                
+                // Show error message
+                const errorToast = document.createElement('div');
+                errorToast.className = 'toast align-items-center text-bg-danger border-0 position-fixed top-0 end-0 m-3';
+                errorToast.setAttribute('role', 'alert');
+                errorToast.innerHTML = `
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Error finding route. Please try again.
+                        </div>
+                        <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>
+                `;
+                document.body.appendChild(errorToast);
+                const toast = new bootstrap.Toast(errorToast);
+                toast.show();
+                
+                // Remove after hiding
+                errorToast.addEventListener('hidden.bs.toast', function() {
+                    errorToast.remove();
+                });
+            }
+        }
+        
+        // Function to update the route line with proper navigation
+        function updateRoute() {
+            if (!currentLocationMarker || !destinationMarker) return;
+            
+            const start = currentLocationMarker.getLatLng();
+            const end = destinationMarker.getLatLng();
+            
+            // Remove existing route if any
+            if (routeControl) {
+                map.removeControl(routeControl);
+                routeControl = null;
+            }
+            
+            // Create a new route using Leaflet Routing Machine with improved options
+            routeControl = L.Routing.control({
+                waypoints: [
+                    L.latLng(start.lat, start.lng),
+                    L.latLng(end.lat, end.lng)
+                ],
+                routeWhileDragging: false,
+                addWaypoints: false,
+                createMarker: function() { return null; }, // Don't create markers, we already have them
+                lineOptions: {
+                    styles: [
+                        {color: '#3388ff', opacity: 0.8, weight: 5},
+                        {color: 'white', opacity: 0.3, weight: 8}
+                    ]
+                },
+                show: false, // Don't show the default instructions panel
+                router: L.Routing.osrmv1({
+                    serviceUrl: 'https://router.project-osrm.org/route/v1',
+                    profile: 'driving',
+                    suppressDemoServerWarning: true
+                })
+            }).addTo(map);
+            
+            // Listen for route found event to get instructions
+            routeControl.on('routesfound', function(e) {
+                const routes = e.routes;
+                const route = routes[0]; // Get the first route
+                
+                // Store route coordinates for navigation simulation
+                routeCoordinates = route.coordinates || [];
+                console.log("Route found with", routeCoordinates.length, "coordinates");
+                currentRouteIndex = 0;
+                
+                // Calculate ETA
+                const distanceInMeters = route.summary.totalDistance;
+                const distanceText = distanceInMeters > 1000 ? 
+                    `${(distanceInMeters / 1000).toFixed(1)} km` : 
+                    `${Math.round(distanceInMeters)} m`;
+                
+                const timeInSeconds = route.summary.totalTime;
+                const timeInMinutes = Math.round(timeInSeconds / 60);
+                const etaText = timeInMinutes > 60 ? 
+                    `${Math.floor(timeInMinutes / 60)} hr ${timeInMinutes % 60} min` : 
+                    `${timeInMinutes} min`;
+                
+                document.getElementById('destinationEta').textContent = `${distanceText} (ETA: ${etaText})`;
+                
+                // Extract and display turn-by-turn instructions
+                const instructions = route.instructions || [];
+                displayRouteInstructions(instructions);
+                
+                // Show navigation button once route is calculated
+                document.getElementById('startNavigation').style.display = 'inline-block';
+            });
+            
+            // Handle routing errors
+            routeControl.on('routingerror', function(e) {
+                console.error('Routing error:', e);
+                showToast('Error finding route. Using direct route instead.', 'Routing Error');
+                
+                // Create a simple direct route if routing fails
+                createDirectRoute(start, end);
+            });
+        }
+        
+        // Create a simple direct route when routing service fails
+        function createDirectRoute(start, end) {
+            // Generate a simplified path with just start and end
+            routeCoordinates = [
+                { lat: start.lat, lng: start.lng },
+                { lat: end.lat, lng: end.lng }
+            ];
+            
+            // Draw a simple line
+            if (routeLine) {
+                map.removeLayer(routeLine);
+            }
+            
+            routeLine = L.polyline([
+                [start.lat, start.lng],
+                [end.lat, end.lng]
+            ], {
+                color: '#3388ff',
+                weight: 5,
+                opacity: 0.7
+            }).addTo(map);
+            
+            // Calculate straight-line distance
+            const distance = calculateDistance(start.lat, start.lng, end.lat, end.lng);
+            const distanceText = distance > 1000 ? 
+                `${(distance / 1000).toFixed(1)} km` : 
+                `${Math.round(distance)} m`;
+            
+            // Estimate time (assuming 30 km/h average speed)
+            const timeInMinutes = Math.round((distance / 1000) / 30 * 60);
+            const etaText = timeInMinutes > 60 ? 
+                `${Math.floor(timeInMinutes / 60)} hr ${timeInMinutes % 60} min` : 
+                `${timeInMinutes} min`;
+            
+            document.getElementById('destinationEta').textContent = `${distanceText} (ETA: ~${etaText})`;
+            
+            // Create simplified instructions
+            displayRouteInstructions([
+                { 
+                    type: 'Head', 
+                    text: 'Head toward destination', 
+                    distance: distance 
+                },
+                { 
+                    type: 'DestinationReached', 
+                    text: 'Arrive at destination',
+                    distance: 0
+                }
+            ]);
+            
+            // Show navigation button
+            document.getElementById('startNavigation').style.display = 'inline-block';
+        }
+
+        // Helper function to show toast messages
+        function showToast(message, title = 'Notification') {
+            const toastEl = document.createElement('div');
+            toastEl.className = 'toast align-items-center text-bg-primary border-0 position-fixed bottom-0 end-0 m-3';
+            toastEl.setAttribute('role', 'alert');
+            toastEl.setAttribute('aria-live', 'assertive');
+            toastEl.setAttribute('aria-atomic', 'true');
+            
+            toastEl.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <strong>${title}:</strong> ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+            
+            document.body.appendChild(toastEl);
+            const toast = new bootstrap.Toast(toastEl);
+            toast.show();
+            
+            // Remove from DOM after hiding
+            toastEl.addEventListener('hidden.bs.toast', function() {
+                toastEl.remove();
+            });
+        }
+
+        // ...existing code...
     </script>
+
+    <!-- Update the task cards to be clickable for navigation -->
+    <style>
+        /* ...existing styles... */
+        
+        .task-card {
+            /* ...existing styles... */
+            cursor: pointer;
+            position: relative;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .task-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+        
+        .task-card.border-primary {
+            border: 1px solid #0d6efd !important;
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        }
+        
+        /* Add styling for task navigation button */
+        .navigate-to-task {
+            margin-left: 5px;
+        }
+    </style>
 </body>
 </html>

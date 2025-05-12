@@ -474,6 +474,128 @@
             justify-content: center;
             box-shadow: 0 0 0 2px white, 0 0 10px rgba(0,0,0,0.3);
         }
+        
+        /* Enhanced popup styling for collector profiles */
+        .collector-popup {
+            min-width: 250px;
+        }
+        
+        .collector-popup .collector-image {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            display: block;
+            margin: 0 auto 12px auto;
+        }
+        
+        .collector-popup .collector-info {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .collector-popup .collector-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 3px;
+        }
+        
+        .collector-popup .collector-details {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 5px 10px;
+            text-align: left;
+            margin-top: 10px;
+        }
+        
+        .collector-popup .label {
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .collector-popup .value {
+            color: #333;
+        }
+        
+        .collector-popup .actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.2);
+        }
+
+        /* Profile marker styling */
+        .collector-marker {
+            background-color: white;
+            border: 3px solid #198754;
+            border-radius: 50%;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+            width: 50px !important;
+            height: 50px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .collector-marker img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .collector-marker.pulse {
+            animation: marker-pulse 1.5s infinite;
+        }
+        
+        .collector-marker.nearby {
+            border-color: #dc3545;
+        }
+        
+        .collector-marker.approaching {
+            border-color: #ffc107;
+        }
+        
+        @keyframes marker-pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.4);
+            }
+            70% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 10px rgba(25, 135, 84, 0);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(25, 135, 84, 0);
+            }
+        }
+        
+        .collector-marker-status {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background-color: #198754;
+            border: 2px solid white;
+        }
+        
+        .collector-marker-status.status-approaching {
+            background-color: #ffc107;
+        }
+        
+        .collector-marker-status.status-nearby {
+            background-color: #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -574,22 +696,34 @@
                             <div class="truck-info">
                                 {% if collectors %}
                                     <ul class="list-group list-group-flush truck-list">
-                                        {% for collector in collectors %}
-                                        <li class="list-group-item d-flex justify-content-between align-items-center truck-item border-start border-4 border-success rounded-3 shadow-sm mb-3 mx-0 position-relative" data-id="{{ collector.id }}">
+                                        {% for collector_item in collectors %}  <!-- Renamed to avoid conflict with JS collector var -->
+                                        <li class="list-group-item d-flex justify-content-between align-items-center truck-item border-start border-4 border-success rounded-3 shadow-sm mb-3 mx-0 position-relative" 
+                                            data-id="{{ collector_item.id }}"
+                                            data-avatar="{{ collector_item.user.avatar_path if collector_item.user and collector_item.user.avatar_path else '' }}">
                                             <div class="ms-2">
                                                 <div class="d-flex align-items-center">
-                                                    <div class="collector-icon bg-success bg-opacity-10 p-2 rounded-circle me-3">
-                                                        <i class="bi bi-truck text-success fs-4"></i>
+                                                    <div class="collector-icon me-3" style="width: 40px; height: 40px;">
+                                                        {% if collector_item.user and collector_item.user.avatar_path %}
+                                                            <img src="{{ url_for('static', filename='uploads/avatars/' + collector_item.user.avatar_path) }}?v={{ now }}" 
+                                                                 alt="{{ collector_item.user.username }}" 
+                                                                 class="rounded-circle" 
+                                                                 style="width: 100%; height: 100%; object-fit: cover;"
+                                                                 onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                                                        {% else %}
+                                                            <div class="d-flex align-items-center justify-content-center rounded-circle bg-light" style="width: 100%; height: 100%;">
+                                                                <i class="bi bi-truck text-secondary fs-4"></i> <!-- Default icon -->
+                                                            </div>
+                                                        {% endif %}
                                                     </div>
                                                     <div>
                                                         <h6 class="mb-0 fw-bold d-flex align-items-center">
-                                                            {{ collector.vehicle_id }} 
+                                                            {{ collector_item.vehicle_id }} 
                                                             <span class="badge bg-success status-badge rounded-pill ms-2">Active</span>
                                                         </h6>
                                                         <small class="text-muted d-flex align-items-center mt-1">
                                                             <i class="bi bi-clock me-1"></i>
-                                                            {% if collector.last_updated %}
-                                                            Last updated: {{ collector.last_updated.strftime('%H:%M') }}
+                                                            {% if collector_item.last_updated %}
+                                                            Last updated: {{ collector_item.last_updated.strftime('%H:%M') }}
                                                             <span class="distance-info ms-2 badge bg-light text-dark rounded-pill"></span>
                                                             {% else %}
                                                             Status unavailable
@@ -604,10 +738,10 @@
                                             </div>
                                             <div class="d-flex">
                                                 <div class="btn-group shadow-sm">
-                                                    <button class="btn btn-sm btn-outline-info route-btn" data-id="{{ collector.id }}" data-bs-toggle="tooltip" title="Show route">
+                                                    <button class="btn btn-sm btn-outline-info route-btn" data-id="{{ collector_item.id }}" data-bs-toggle="tooltip" title="Show route">
                                                         <i class="bi bi-map"></i> Route
                                                     </button>
-                                                    <button class="btn btn-sm btn-outline-success track-btn" data-id="{{ collector.id }}" data-bs-toggle="tooltip" title="Track this truck">
+                                                    <button class="btn btn-sm btn-outline-success track-btn" data-id="{{ collector_item.id }}" data-bs-toggle="tooltip" title="Track this truck">
                                                         <i class="bi bi-geo-alt"></i> Track
                                                     </button>
                                                 </div>
@@ -894,17 +1028,20 @@
             }
         });
 
+        // Improved function to get the correct avatar URL matching the profile page approach
+        function getCollectorAvatarUrl(avatarPath) {
+            if (!avatarPath) {
+                // console.log('No avatar path provided, using default'); // Keep console logs minimal
+                return '{{ url_for("static", filename="img/avatar-default.png") }}';
+            }
+            // console.log('Using avatar path:', avatarPath); // Keep console logs minimal
+            return '{{ url_for("static", filename="uploads/avatars") }}/' + avatarPath + '?v=' + Date.now();
+        }
+        
         // Function to update map with truck locations
         function updateCollectorOnMap(collector) {
             if (!collector.lat || !collector.lng) return;
             
-            const truckIcon = L.icon({
-                iconUrl: '/static/img/truck-icon.png',
-                iconSize: [32, 32],
-                iconAnchor: [16, 32],
-                popupAnchor: [0, -32]
-            });
-
             // Calculate distance from user
             const distance = calculateDistance(
                 userLocation[0], userLocation[1], 
@@ -966,35 +1103,66 @@
             document.getElementById('current-location').textContent = collector.location_name || 
                 "Approaching " + formatDistance(distance) + " from your location";
 
+            // Determine marker status based on distance
+            let markerStatus = 'active';
+            if (distance < 500) {
+                markerStatus = 'nearby';
+            } else if (distance < 2000) {
+                markerStatus = 'approaching';
+            }
+            
+            // Debug log avatar path
+            console.log(`Collector ${collector.id} avatar path:`, collector.avatar_path);
+            
+            // Get avatar URL using the helper function
+            const avatarUrl = getCollectorAvatarUrl(collector.avatar_path);
+                
+            // Create profile marker icon with improved error handling
+            const profileMarkerIcon = L.divIcon({
+                className: `collector-marker ${markerStatus === 'active' ? 'pulse' : ''} ${markerStatus}`,
+                html: `
+                    <img src="${avatarUrl}" 
+                         alt="${collector.name || 'Collector'}" 
+                         onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                    <span class="collector-marker-status status-${markerStatus}"></span>
+                `,
+                iconSize: [50, 50],
+                iconAnchor: [25, 50]
+            });
+
             if (truckMarkers[collector.id]) {
                 // Update existing marker
                 truckMarkers[collector.id].setLatLng([collector.lat, collector.lng]);
+                
+                // Update the icon with current status
+                truckMarkers[collector.id].setIcon(profileMarkerIcon);
+                
+                // Update popup content with enhanced design
+                const popupContent = createCollectorPopup(collector, distance);
+                truckMarkers[collector.id].setPopupContent(popupContent);
                 
                 // Create movement animation
                 truckMarkers[collector.id].setOpacity(0.5);
                 setTimeout(() => {
                     truckMarkers[collector.id].setOpacity(1.0);
                 }, 300);
-                
-                truckMarkers[collector.id].bindPopup(`
-                    <strong>${collector.name || 'Collector'}</strong><br>
-                    Vehicle: ${collector.vehicle_id}<br>
-                    Distance: ${formatDistance(distance)}<br>
-                    Last Updated: ${collector.last_updated || new Date().toLocaleTimeString()}
-                `);
             } else {
-                // Create new marker
+                // Create new marker with profile image
                 truckMarkers[collector.id] = L.marker([collector.lat, collector.lng], {
-                    icon: truckIcon,
-                    zIndexOffset: 1000
+                    icon: profileMarkerIcon,
+                    zIndexOffset: 1000 // Ensure collector markers are on top
                 }).addTo(map);
                 
-                truckMarkers[collector.id].bindPopup(`
-                    <strong>${collector.name || 'Collector'}</strong><br>
-                    Vehicle: ${collector.vehicle_id}<br>
-                    Distance: ${formatDistance(distance)}<br>
-                    Last Updated: ${collector.last_updated || new Date().toLocaleTimeString()}
-                `);
+                // Store collector data with the marker for easy access
+                truckMarkers[collector.id]._collectorData = collector;
+
+                // Create enhanced popup
+                const popupContent = createCollectorPopup(collector, distance);
+                truckMarkers[collector.id].bindPopup(popupContent, {
+                    className: 'collector-popup-wrapper',
+                    minWidth: 250,
+                    offset: [0, -35]  // Adjust popup position for profile markers
+                });
                 
                 // Pulse animation for new markers
                 truckMarkers[collector.id].setOpacity(0);
@@ -1003,7 +1171,150 @@
                 }, 300);
             }
         }
+        
+        // Create an enhanced popup with collector profile image and details
+        function createCollectorPopup(collector, distance) {
+            // Get avatar URL using the helper function
+            const avatarUrl = getCollectorAvatarUrl(collector.avatar_path);
+            
+            // Format ETAs and times
+            const formattedDistance = formatDistance(distance);
+            const eta = calculateETA(distance);
+            const lastUpdated = collector.last_updated ? 
+                new Date(collector.last_updated).toLocaleTimeString() : 
+                'Just now';
+                
+            return `
+                <div class="collector-popup">
+                    <div class="collector-info">
+                        <img src="${avatarUrl}" 
+                             alt="${collector.name || 'Collector'}" 
+                             class="collector-image" 
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                        <div class="collector-name">${collector.name || 'Collector'}</div>
+                        <span class="badge bg-${getStatusClass(collector.status || 'active')}">${collector.status || 'Active'}</span>
+                    </div>
+                    <div class="collector-details">
+                        <div class="label">Vehicle:</div>
+                        <div class="value">${collector.vehicle_id}</div>
+                        <div class="label">Distance:</div>
+                        <div class="value">${formattedDistance}</div>
+                        <div class="label">ETA:</div>
+                        <div class="value">${eta}</div>
+                        <div class="label">Updated:</div>
+                        <div class="value">${lastUpdated}</div>
+                    </div>
+                    <div class="actions">
+                        <button onclick="showRoute('${collector.id}')" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-map"></i> Show Route
+                        </button>
+                        <button onclick="contactCollector('${collector.id}')" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-telephone"></i> Contact
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Helper to get appropriate status class
+        function getStatusClass(status) {
+            switch(status.toLowerCase()) {
+                case 'active': return 'success';
+                case 'offline': return 'secondary';
+                case 'in-progress': return 'warning';
+                case 'nearby': return 'danger';
+                case 'approaching': return 'info';
+                default: return 'primary';
+            }
+        }
+        
+        // Add function to contact collector (can be expanded later)
+        function contactCollector(collectorId) {
+            showToast('This feature will be available in the next update.', 'Coming Soon');
+        }
 
+        // Fetch collector details including avatar when tracking
+        document.querySelectorAll('.track-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const collectorId = this.getAttribute('data-id');
+                fetch(`/api/get-collector-details?id=${collectorId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data) {
+                            // Store enhanced collector data for future reference
+                            if (!truckMarkers[data.id]) {
+                                // If marker doesn't exist yet, create one with default position
+                                data.lat = data.lat || 14.676;
+                                data.lng = data.lng || 121.043;
+                                updateCollectorOnMap(data);
+                            }
+                            
+                            map.setView([data.lat, data.lng], 16);
+                            if (truckMarkers[data.id]) {
+                                truckMarkers[data.id].openPopup();
+                                
+                                // After tracking the truck, show the route as well for better navigation
+                                showRoute(data.id);
+                            }
+                            
+                            // Update the truck card in the list with avatar
+                            updateTruckCardWithAvatar(data);
+                        }
+                    })
+                    .catch(error => console.error('Error tracking collector:', error));
+            });
+        });
+        
+        // Update truck card with avatar - improved implementation
+        function updateTruckCardWithAvatar(collector) {
+            const listItem = document.querySelector(`.truck-item[data-id="${collector.id}"]`);
+            if (listItem) {
+                const collectorIconContainer = listItem.querySelector('.collector-icon'); // Target the container
+                if (collectorIconContainer) {
+                    const avatarUrl = getCollectorAvatarUrl(collector.avatar_path);
+                    // console.log('Updating truck card with avatar URL:', avatarUrl); // Keep console logs minimal
+                    
+                    collectorIconContainer.innerHTML = `
+                        <img src="${avatarUrl}" 
+                             alt="${collector.name || 'Collector'}"
+                             class="rounded-circle" 
+                             style="width: 100%; height: 100%; object-fit: cover;"
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                    `;
+                    
+                    // Store the avatar path in the list item for future reference
+                    listItem.dataset.avatar = collector.avatar_path || '';
+                }
+            }
+        }
+        
+        // Helper function to find collector data by ID
+        function findCollectorById(id) {
+            // Try to find in the DOM first
+            const listItem = document.querySelector(`.truck-item[data-id="${id}"]`);
+            if (listItem) {
+                return {
+                    id: id,
+                    name: listItem.querySelector('h6')?.textContent.trim() || 'Collector',
+                    avatar_path: listItem.dataset.avatar || null
+                };
+            }
+            
+            // If not found in DOM, check existing markers
+            if (truckMarkers[id]) {
+                const marker = truckMarkers[id];
+                const collectorData = marker._collectorData || {};
+                return {
+                    id: id,
+                    name: collectorData.name || 'Collector',
+                    avatar_path: collectorData.avatar_path || null
+                };
+            }
+            
+            // Return basic object otherwise
+            return { id: id };
+        }
+        
         // Function to show the route between collector and user
         function showRoute(collectorId) {
             // Remove existing route if any
@@ -1046,7 +1357,24 @@
                     createMarker: function(i, waypoint, n) {
                         // Only create markers for the collector, not for the user
                         if (i === n - 1) {
-                            const marker = L.marker(waypoint.latLng, {
+                            // For collector endpoint, use their profile image if available
+                            const collectorData = findCollectorById(collectorId); // Use collectorData instead of collector
+                            if (collectorData && collectorData.avatar_path) {
+                                const avatarUrl = getCollectorAvatarUrl(collectorData.avatar_path);
+                                const markerIcon = L.divIcon({
+                                    className: 'collector-marker',
+                                    html: `
+                                        <img src="${avatarUrl}" alt="Collector" 
+                                            onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                                    `,
+                                    iconSize: [40, 40],
+                                    iconAnchor: [20, 40]
+                                });
+                                return L.marker(waypoint.latLng, { icon: markerIcon });
+                            }
+                            
+                            // Fallback to default marker
+                            return L.marker(waypoint.latLng, {
                                 icon: L.divIcon({
                                     className: 'custom-route-marker',
                                     html: '<div class="route-marker-destination"><i class="bi bi-truck-fill"></i></div>',
@@ -1054,9 +1382,8 @@
                                     iconAnchor: [15, 30]
                                 })
                             });
-                            return marker;
                         } else if (i === 0) {
-                            // Start point
+                            // Start point remains the same
                             const marker = L.marker(waypoint.latLng, {
                                 icon: L.divIcon({
                                     className: 'custom-route-marker',

@@ -7,16 +7,25 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    <style>
+        /* Logo styling for sidebar - keeping the container but removing the logo itself */
+        .sidebar-logo-container {
+            padding: 1rem 0;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 1rem;
+        }
+    </style>
 </head>
 <body>
-    <div class="container-fluid">
+    <div class="container-fluid">   
         <div class="row">
             <!-- Sidebar -->
             <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse">
                 <div class="position-sticky pt-3">
-                    <div class="text-center mb-4">
-                        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="50">
-                        <h5 class="text-white mt-2">Admin Panel</h5>
+                    <div class="sidebar-logo-container">
+                         <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="G-TRUCKS Logo" height="50">
+                        <h5 class="text-white">Admin Panel</h5>
                     </div>
                     <ul class="nav flex-column">
                         <li class="nav-item">
@@ -109,7 +118,7 @@
                                     </select>
                                 </div>
                                 <div class="col-md-3 mb-3">
-                                    <button type="submit" class="btn btn-primary w-100">
+                                    <button type="submit" class="btn btn-primary w-100" id="generateReportBtn">
                                         <i class="bi bi-search"></i> Generate Report
                                     </button>
                                 </div>
@@ -317,10 +326,14 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF Core Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- jsPDF AutoTable plugin -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <script>
         // Collection Trends Chart
         const collectionTrendsCtx = document.getElementById('collectionTrendsChart').getContext('2d');
-        const collectionTrendsChart = new Chart(collectionTrendsCtx, {
+        let collectionTrendsChart = new Chart(collectionTrendsCtx, {
             type: 'line',
             data: {
                 labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
@@ -360,7 +373,7 @@
 
         // Collections by Barangay Chart
         const collectionsByBarangayCtx = document.getElementById('collectionsByBarangayChart').getContext('2d');
-        const collectionsByBarangayChart = new Chart(collectionsByBarangayCtx, {
+        let collectionsByBarangayChart = new Chart(collectionsByBarangayCtx, {
             type: 'doughnut',
             data: {
                 labels: ['District 1', 'District 2', 'District 3', 'District 4', 'District 5', 'District 6'],
@@ -384,7 +397,7 @@
 
         // User Engagement Chart
         const userEngagementCtx = document.getElementById('userEngagementChart').getContext('2d');
-        const userEngagementChart = new Chart(userEngagementCtx, {
+        let userEngagementChart = new Chart(userEngagementCtx, {
             type: 'bar',
             data: {
                 labels: ['App Logins', 'Tracking Views', 'Notifications Read', 'Feedback Submitted', 'In-App Time'],
@@ -411,13 +424,170 @@
             }
         });
 
-        // Export buttons functionality (demo only)
+        // Helper function to generate random data for chart updates
+        function getRandomData(count) {
+            return Array.from({ length: count }, () => Math.floor(Math.random() * 100));
+        }
+
+        // Function to update charts with new data (simulation)
+        function updateCharts() {
+            collectionTrendsChart.data.datasets[0].data = getRandomData(7);
+            collectionTrendsChart.data.datasets[1].data = getRandomData(7);
+            collectionTrendsChart.update();
+
+            collectionsByBarangayChart.data.datasets[0].data = getRandomData(6);
+            collectionsByBarangayChart.update();
+
+            userEngagementChart.data.datasets[0].data = getRandomData(5);
+            userEngagementChart.update();
+        }
+        
+        // Function to simulate updating table data
+        function updateTableData() {
+            const tableBody = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = ''; // Clear existing data
+
+            const statuses = ['Completed', 'Delayed', 'Pending'];
+            const barangays = ['Brgy Alpha', 'Brgy Beta', 'Brgy Gamma', 'Brgy Delta', 'Brgy Epsilon'];
+            const collectors = ['Collector A', 'Collector B', 'Collector C'];
+
+            for (let i = 0; i < 5; i++) { // Add 5 new rows of dummy data
+                const row = tableBody.insertRow();
+                const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+                const statusBadge = randomStatus === 'Completed' ? 'bg-success' : (randomStatus === 'Delayed' ? 'bg-warning' : 'bg-primary');
+                
+                row.insertCell().textContent = `2023-05-${String(Math.floor(Math.random() * 30) + 1).padStart(2, '0')}`;
+                row.insertCell().textContent = barangays[Math.floor(Math.random() * barangays.length)];
+                row.insertCell().textContent = collectors[Math.floor(Math.random() * collectors.length)];
+                row.insertCell().textContent = `${String(Math.floor(Math.random() * 4) + 8).padStart(2, '0')}:00`;
+                row.insertCell().textContent = `${String(Math.floor(Math.random() * 4) + 10).padStart(2, '0')}:30`;
+                row.insertCell().textContent = `2h ${Math.floor(Math.random()*50)+10}m`;
+                row.insertCell().innerHTML = `<span class="badge ${statusBadge}">${randomStatus}</span>`;
+                row.insertCell().textContent = `${Math.floor(Math.random() * 30) + 70}%`;
+            }
+        }
+
+
+        // Export buttons functionality
         document.getElementById('exportPDF').addEventListener('click', function() {
-            alert('Export to PDF functionality would be implemented here');
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            let yPos = 20; // Initial Y position for content
+
+            doc.setFontSize(18);
+            doc.text("G-TRUCKS Admin Report", 105, yPos, { align: 'center' });
+            yPos += 10;
+
+            doc.setFontSize(12);
+            const reportDate = new Date().toLocaleDateString();
+            doc.text(`Report Generated: ${reportDate}`, 105, yPos, { align: 'center' });
+            yPos += 15;
+
+            // Add Filters Info
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const reportType = document.getElementById('reportType').selectedOptions[0].text;
+            doc.setFontSize(10);
+            doc.text("Filters Applied:", 14, yPos);
+            yPos += 6;
+            doc.text(`- Date Range: ${startDate || 'N/A'} to ${endDate || 'N/A'}`, 14, yPos);
+            yPos += 6;
+            doc.text(`- Report Type: ${reportType}`, 14, yPos);
+            yPos += 10;
+
+
+            // Function to add chart to PDF
+            function addChartToPdf(chartInstance, title, doc, y) {
+                return new Promise((resolve) => {
+                    doc.setFontSize(14);
+                    doc.text(title, 14, y);
+                    y += 8;
+                    const imgData = chartInstance.toBase64Image();
+                    // Calculate aspect ratio to fit width
+                    const imgProps = doc.getImageProperties(imgData);
+                    const pdfWidth = doc.internal.pageSize.getWidth() - 28; // Page width - margins
+                    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                    
+                    if (y + pdfHeight > doc.internal.pageSize.getHeight() - 20) { // Check if it fits
+                        doc.addPage();
+                        y = 20; // Reset yPos for new page
+                        doc.setFontSize(14);
+                        doc.text(title, 14, y);
+                        y += 8;
+                    }
+                    doc.addImage(imgData, 'PNG', 14, y, pdfWidth, pdfHeight);
+                    resolve(y + pdfHeight + 10); // Return new yPos
+                });
+            }
+
+            // Add charts to PDF
+            addChartToPdf(collectionTrendsChart, "Collection Trends", doc, yPos)
+                .then(newYPos => {
+                    yPos = newYPos;
+                    return addChartToPdf(collectionsByBarangayChart, "Collections by Barangay", doc, yPos);
+                })
+                .then(newYPos => {
+                    yPos = newYPos;
+                    return addChartToPdf(userEngagementChart, "User Engagement", doc, yPos);
+                })
+                .then(newYPos => {
+                    yPos = newYPos;
+                    // Add Collection Details Table
+                    doc.setFontSize(14);
+                    if (yPos + 20 > doc.internal.pageSize.getHeight() - 20) { // Check space for title
+                        doc.addPage();
+                        yPos = 20;
+                    }
+                    doc.text("Collection Details", 14, yPos);
+                    yPos += 8;
+
+                    doc.autoTable({
+                        html: '#dataTable',
+                        startY: yPos,
+                        theme: 'grid',
+                        headStyles: { fillColor: [22, 160, 133] },
+                        didDrawPage: function (data) {
+                            // Footer for each page of the table if needed
+                        }
+                    });
+                    
+                    doc.save('g-trucks_report.pdf');
+                    alert('PDF export initiated.');
+                })
+                .catch(error => {
+                    console.error("Error generating PDF: ", error);
+                    alert("Failed to generate PDF. Check console for errors.");
+                });
         });
 
         document.getElementById('exportCSV').addEventListener('click', function() {
-            alert('Export to CSV functionality would be implemented here');
+            const table = document.getElementById('dataTable');
+            let csv = [];
+            const rows = table.querySelectorAll('tr');
+            
+            for (const row of rows) {
+                const rowData = [];
+                const cols = row.querySelectorAll('td, th');
+                for (const col of cols) {
+                    // Escape commas and quotes in cell text
+                    let cellText = col.innerText.replace(/"/g, '""');
+                    if (cellText.includes(',')) {
+                        cellText = `"${cellText}"`;
+                    }
+                    rowData.push(cellText);
+                }
+                csv.push(rowData.join(','));
+            }
+
+            const csvContent = 'data:text/csv;charset=utf-8,' + csv.join('\n');
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', 'collection_report.csv');
+            document.body.appendChild(link); // Required for FF
+            link.click();
+            document.body.removeChild(link);
+            alert('CSV export initiated.');
         });
 
         document.getElementById('printReport').addEventListener('click', function() {
@@ -427,10 +597,18 @@
         // Report filters form
         document.getElementById('reportFilters').addEventListener('submit', function(e) {
             e.preventDefault();
-            alert('Report generation functionality would be implemented here');
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const reportType = document.getElementById('reportType').value;
+
+            // Simulate fetching data and updating UI
+            console.log('Generating report with filters:', { startDate, endDate, reportType });
+            alert(`Generating report for type: ${reportType} from ${startDate || 'start'} to ${endDate || 'end'}. Chart and table data will be updated with new (simulated) values.`);
             
-            // In a real implementation, this would fetch data from the server
-            // and update the charts and tables based on the selected filters
+            // Update charts with new random data
+            updateCharts();
+            // Update table with new random data
+            updateTableData();
         });
     </script>
 </body>

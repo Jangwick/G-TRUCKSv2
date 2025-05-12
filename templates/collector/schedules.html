@@ -6,7 +6,159 @@
     <title>My Schedules - G-TRUCKS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <!-- FullCalendar CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/collector.css') }}">
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #f8f9fa;
+        }
+        
+        .footer {
+            margin-top: auto;
+        }
+
+        /* Calendar styling */
+        .fc-event {
+            cursor: pointer;
+            border-radius: 5px;
+            padding: 3px;
+            margin: 1px 0;
+            border: none;
+        }
+
+        .fc-day-today {
+            background-color: rgba(25, 135, 84, 0.1) !important;
+        }
+
+        .fc-header-toolbar {
+            margin-bottom: 1rem !important;
+        }
+
+        .fc-toolbar-title {
+            font-size: 1.3rem !important;
+            font-weight: 600 !important;
+        }
+
+        /* Calendar legend */
+        .calendar-legend {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+
+        /* Event status colors */
+        .event-scheduled {
+            background-color: #0d6efd !important;
+            border-left: 3px solid #0a58ca !important;
+        }
+
+        .event-in-progress {
+            background-color: #ffc107 !important;
+            border-left: 3px solid #d39e00 !important;
+            color: #000 !important;
+        }
+
+        .event-completed {
+            background-color: #198754 !important;
+            border-left: 3px solid #146c43 !important;
+        }
+
+        .event-cancelled {
+            background-color: #dc3545 !important;
+            border-left: 3px solid #b02a37 !important;
+        }
+
+        .event-rescheduled {
+            background-color: #6c757d !important;
+            border-left: 3px solid #565e64 !important;
+        }
+
+        /* Filter controls */
+        .schedule-filter {
+            padding: 1rem;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .schedule-filter .btn-check:checked + .btn-outline-secondary {
+            background-color: #198754;
+            border-color: #198754;
+            color: white;
+        }
+
+        /* Schedule details modal */
+        .schedule-modal .modal-header {
+            border-radius: 5px 5px 0 0;
+            color: white;
+        }
+
+        .modal-header.status-scheduled {
+            background-color: #0d6efd;
+        }
+
+        .modal-header.status-in-progress {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .modal-header.status-completed {
+            background-color: #198754;
+        }
+
+        .modal-header.status-cancelled {
+            background-color: #dc3545;
+        }
+
+        .modal-header.status-rescheduled {
+            background-color: #6c757d;
+        }
+
+        /* Print optimization */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            
+            .fc-view-harness {
+                height: auto !important;
+            }
+            
+            body, .container, .card {
+                padding: 0 !important;
+                margin: 0 !important;
+                background-color: white !important;
+            }
+            
+            .schedule-filter, .fc-button-group {
+                display: none;
+            }
+            
+            .card {
+                border: none !important;
+                box-shadow: none !important;
+            }
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-success">
@@ -58,65 +210,491 @@
             {% endif %}
         {% endwith %}
         
-        <div class="row mb-4">
+        <div class="row mb-4 align-items-center">
             <div class="col">
-                <h2 class="mb-4">My Collection Schedules</h2>
-                
-                <ul class="nav nav-tabs mb-4">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="#weekly" data-bs-toggle="tab">Weekly Schedule</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#calendar" data-bs-toggle="tab">Calendar View</a>
-                    </li>
-                </ul>
-                
-                <div class="tab-content">
-                    <div class="tab-pane fade show active" id="weekly">
-                        <div class="row">
-                            {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
-                            {% for day in days %}
-                                <div class="col-md-6 col-lg-4 mb-4">
-                                    <div class="card h-100">
-                                        <div class="card-header bg-light">
-                                            <h5 class="card-title mb-0">{{ day }}</h5>
-                                        </div>
-                                        <div class="card-body">
-                                            {% set day_schedules = schedules|selectattr('day_of_week', 'equalto', day)|list %}
-                                            {% if day_schedules %}
-                                                {% for schedule in day_schedules %}
-                                                    <div class="schedule-item mb-3 p-3 border-start border-4 {% if schedule.status == 'completed' %}border-success{% elif schedule.status == 'in-progress' %}border-warning{% else %}border-primary{% endif %} bg-light rounded">
-                                                        <div class="d-flex justify-content-between align-items-center">
-                                                            <h6 class="mb-0">{{ schedule.barangay.name }}</h6>
-                                                            <span class="badge {% if schedule.status == 'completed' %}bg-success{% elif schedule.status == 'in-progress' %}bg-warning{% else %}bg-primary{% endif %}">
-                                                                {{ schedule.status|capitalize }}
-                                                            </span>
-                                                        </div>
-                                                        <small class="text-muted">{{ schedule.time_start.strftime('%I:%M %p') }} - {{ schedule.time_end.strftime('%I:%M %p') }}</small>
-                                                    </div>
-                                                {% endfor %}
-                                            {% else %}
-                                                <p class="text-muted mb-0">No collections scheduled</p>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        </div>
+                <h2 class="mb-0">My Collection Schedules</h2>
+                <p class="text-muted">View and manage your collection assignments</p>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group no-print">
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addScheduleModal">
+                        <i class="bi bi-plus-circle"></i> Add Schedule
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="printSchedule">
+                        <i class="bi bi-printer"></i> Print
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-12 col-lg-3 mb-4">
+                <div class="card shadow-sm h-100 no-print">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-filter"></i> Filters
+                        </h5>
                     </div>
-                    <div class="tab-pane fade" id="calendar">
-                        <div class="card">
-                            <div class="card-body">
-                                <div id="calendar"></div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Status</label>
+                            <div class="d-flex flex-column gap-2">
+                                <div class="form-check">
+                                    <input class="form-check-input filter-status" type="checkbox" value="scheduled" id="filterScheduled" checked>
+                                    <label class="form-check-label" for="filterScheduled">
+                                        <span class="badge bg-primary">Scheduled</span>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input filter-status" type="checkbox" value="in-progress" id="filterInProgress" checked>
+                                    <label class="form-check-label" for="filterInProgress">
+                                        <span class="badge bg-warning text-dark">In Progress</span>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input filter-status" type="checkbox" value="completed" id="filterCompleted" checked>
+                                    <label class="form-check-label" for="filterCompleted">
+                                        <span class="badge bg-success">Completed</span>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input filter-status" type="checkbox" value="cancelled" id="filterCancelled">
+                                    <label class="form-check-label" for="filterCancelled">
+                                        <span class="badge bg-danger">Cancelled</span>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input filter-status" type="checkbox" value="rescheduled" id="filterRescheduled">
+                                    <label class="form-check-label" for="filterRescheduled">
+                                        <span class="badge bg-secondary">Rescheduled</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
+                        
+                        <hr>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Barangay</label>
+                            <select class="form-select" id="filterBarangay">
+                                <option value="all" selected>All Barangays</option>
+                                {% for barangay in admin_barangays %}
+                                <option value="{{ barangay.id }}" {% if barangay.id == collector.assigned_barangay_id %}selected{% endif %}>
+                                    {{ barangay.name }} {% if barangay.district %}(District {{ barangay.district }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Showing all barangays from administrative data</div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Date Range</label>
+                            <div class="input-group mb-2">
+                                <span class="input-group-text"><i class="bi bi-calendar3"></i></span>
+                                <input type="date" class="form-control" id="startDate">
+                            </div>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-calendar3"></i></span>
+                                <input type="date" class="form-control" id="endDate">
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" id="applyFilters">Apply Filters</button>
+                            <button class="btn btn-outline-secondary" id="resetFilters">Reset</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow-sm mt-4 no-print">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-info-circle"></i> Schedule Stats
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">This Week</label>
+                            <div class="progress mb-2" style="height: 10px;">
+                                {% set total_count = stats.completed + stats.in_progress + stats.scheduled %}
+                                {% set completed_percent = (stats.completed / total_count * 100) if total_count > 0 else 0 %}
+                                {% set in_progress_percent = (stats.in_progress / total_count * 100) if total_count > 0 else 0 %}
+                                {% set scheduled_percent = (stats.scheduled / total_count * 100) if total_count > 0 else 0 %}
+                                
+                                <div class="progress-bar bg-success" role="progressbar" 
+                                     style="width: {{ completed_percent }}%" 
+                                     aria-valuenow="{{ completed_percent }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100" 
+                                     title="Completed">{{ completed_percent|int }}%</div>
+                                
+                                <div class="progress-bar bg-warning" role="progressbar" 
+                                     style="width: {{ in_progress_percent }}%" 
+                                     aria-valuenow="{{ in_progress_percent }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100" 
+                                     title="In Progress">{{ in_progress_percent|int }}%</div>
+                                
+                                <div class="progress-bar bg-primary" role="progressbar" 
+                                     style="width: {{ scheduled_percent }}%" 
+                                     aria-valuenow="{{ scheduled_percent }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100" 
+                                     title="Scheduled">{{ scheduled_percent|int }}%</div>
+                            </div>
+                            <div class="small">
+                                <span class="text-success">{{ stats.completed }} completed</span> •
+                                <span class="text-warning">{{ stats.in_progress }} in progress</span> •
+                                <span class="text-primary">{{ stats.scheduled }} scheduled</span>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="form-label">Upcoming</label>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>Today</strong>
+                                            <div class="text-muted small">{{ stats.today_remaining }} tasks remaining</div>
+                                        </div>
+                                        <span class="badge bg-warning rounded-pill">{{ stats.today_remaining }}</span>
+                                    </div>
+                                </li>
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>Tomorrow</strong>
+                                            <div class="text-muted small">{{ stats.tomorrow_count }} scheduled tasks</div>
+                                        </div>
+                                        <span class="badge bg-primary rounded-pill">{{ stats.tomorrow_count }}</span>
+                                    </div>
+                                </li>
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>This Week</strong>
+                                            <div class="text-muted small">{{ stats.this_week_count }} scheduled tasks</div>
+                                        </div>
+                                        <span class="badge bg-primary rounded-pill">{{ stats.this_week_count }}</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card shadow-sm mt-4 no-print">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-link-45deg"></i> Data Integration
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Schedule Visibility</label>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="shareWithAdmins" checked>
+                                <label class="form-check-label" for="shareWithAdmins">
+                                    Share with Administrators
+                                </label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="shareWithResidents" checked>
+                                <label class="form-check-label" for="shareWithResidents">
+                                    Share with Residents
+                                </label>
+                            </div>
+                            <div class="form-text">Schedules are automatically shared with system admins</div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary" id="syncWithAdmin">
+                                <i class="bi bi-cloud-download"></i> Sync with Admin System
+                            </button>
+                            <a href="{{ url_for('admin_schedules') }}" class="btn btn-outline-secondary" target="_blank">
+                                <i class="bi bi-eye"></i> View in Admin Panel
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-12 col-lg-9">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-calendar3"></i> Calendar
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="calendar-legend no-print">
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background-color: #0d6efd;"></div>
+                                    <span>Scheduled</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background-color: #ffc107;"></div>
+                                    <span>In Progress</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background-color: #198754;"></div>
+                                    <span>Completed</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background-color: #dc3545;"></div>
+                                    <span>Cancelled</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background-color: #6c757d;"></div>
+                                    <span>Rescheduled</span>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex align-items-center">
+                                <label for="calendarBarangayFilter" class="form-label me-2 mb-0">Filter by Barangay:</label>
+                                <select class="form-select form-select-sm" id="calendarBarangayFilter" style="width: auto;">
+                                    <option value="all" selected>All Barangays</option>
+                                    {% for barangay in admin_barangays %}
+                                    <option value="{{ barangay.id }}">{{ barangay.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="calendar"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <footer class="bg-dark text-white py-4 mt-auto">
+    <!-- Schedule Details Modal -->
+    <div class="modal fade schedule-modal" id="scheduleDetailsModal" tabindex="-1" aria-labelledby="scheduleDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header status-scheduled">
+                    <h5 class="modal-title" id="scheduleDetailsModalLabel">Schedule Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <h5 id="modalBarangayTitle">Barangay Name</h5>
+                        <div class="text-muted" id="modalScheduleTime">Schedule Time</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>Status:</strong>
+                                <span id="modalStatusBadge" class="badge bg-primary">Scheduled</span>
+                            </div>
+                            <div class="col-6">
+                                <strong>Duration:</strong>
+                                <span id="modalDuration">2 hours</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>Collection Notes:</strong>
+                        <p id="modalNotes" class="mb-0">Standard collection route with all types of waste.</p>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="mb-3">
+                        <strong>Contact Info:</strong>
+                        <div id="modalContact">Barangay Office: +63 912 345 6789</div>
+                    </div>
+                    
+                    <div id="progressContainer" class="mb-3">
+                        <strong>Progress:</strong>
+                        <div class="progress mt-2">
+                            <div id="modalProgress" class="progress-bar bg-success" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <div class="btn-group w-100">
+                        <button type="button" class="btn btn-outline-primary" id="btnStartTask">
+                            <i class="bi bi-play-fill"></i> Start
+                        </button>
+                        <button type="button" class="btn btn-outline-success" id="btnCompleteTask">
+                            <i class="bi bi-check2"></i> Complete
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" id="btnCancelTask">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="btnEditTask">
+                            <i class="bi bi-pencil"></i> Edit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Schedule Modal -->
+    <div class="modal fade" id="addScheduleModal" tabindex="-1" aria-labelledby="addScheduleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="addScheduleModalLabel">Add Collection Schedule</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="scheduleForm">
+                        <div class="mb-3">
+                            <label for="scheduleBarangay" class="form-label">Barangay</label>
+                            <select class="form-select" id="scheduleBarangay" required>
+                                <option value="" selected disabled>Select barangay</option>
+                                {% for barangay in admin_barangays %}
+                                <option value="{{ barangay.id }}" {% if barangay.id == collector.assigned_barangay_id %}selected{% endif %}>
+                                    {{ barangay.name }} (District {{ barangay.district }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div id="adminApprovalNote" class="form-text text-warning" style="display: none;">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                Schedules outside your assigned area require admin approval
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col">
+                                <label for="scheduleDate" class="form-label">Date</label>
+                                <input type="date" class="form-control" id="scheduleDate" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col">
+                                <label for="scheduleStartTime" class="form-label">Start Time</label>
+                                <input type="time" class="form-control" id="scheduleStartTime" required>
+                            </div>
+                            <div class="col">
+                                <label for="scheduleEndTime" class="form-label">End Time</label>
+                                <input type="time" class="form-control" id="scheduleEndTime" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="scheduleNotes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="scheduleNotes" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label for="collectionType" class="form-label">Collection Type</label>
+                                <select class="form-select" id="collectionType">
+                                    <option value="regular">Regular Waste</option>
+                                    <option value="recyclable">Recyclables</option>
+                                    <option value="bulky">Bulky Items</option>
+                                    <option value="hazardous">Hazardous Waste</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label for="estimatedVolume" class="form-label">Est. Volume</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="estimatedVolume" min="1" value="1">
+                                    <span class="input-group-text">tons</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="notifyResidents">
+                                <label class="form-check-label" for="notifyResidents">
+                                    Notify residents about this schedule
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Recurring Schedule</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="scheduleRecurring">
+                                <label class="form-check-label" for="scheduleRecurring">
+                                    Make this a recurring collection schedule
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div id="recurringOptions" class="mb-3" style="display: none;">
+                            <div class="row mb-2">
+                                <div class="col">
+                                    <label for="recurringType" class="form-label">Repeat</label>
+                                    <select class="form-select" id="recurringType">
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly" selected>Weekly</option>
+                                        <option value="monthly">Monthly</option>
+                                    </select>
+                                </div>
+                                <div class="col">
+                                    <label for="recurringEnd" class="form-label">Until</label>
+                                    <input type="date" class="form-control" id="recurringEnd">
+                                </div>
+                            </div>
+                            
+                            <div id="weeklyOptions">
+                                <label class="form-label">Repeat on</label>
+                                <div class="d-flex justify-content-between">
+                                    {% for day in ['S', 'M', 'T', 'W', 'T', 'F', 'S'] %}
+                                    <div class="form-check">
+                                        <input class="btn-check" type="checkbox" id="day{{ loop.index0 }}" autocomplete="off">
+                                        <label class="btn btn-outline-secondary rounded-circle btn-sm" style="width: 32px; height: 32px;" for="day{{ loop.index0 }}">{{ day }}</label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="saveSchedule">Save Schedule</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Admin Schedule Link Modal -->
+    <div class="modal fade" id="adminLinkModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Link with Administrative Schedule</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Available Admin Schedules</label>
+                        <select class="form-select" id="adminScheduleSelect">
+                            <option value="" selected disabled>Select a schedule to link</option>
+                            <!-- Will be populated via AJAX -->
+                        </select>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        Linking to an administrative schedule ensures coordination between your collection activities and the city-wide waste management plan.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="linkAdminSchedule">Link Schedule</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer bg-dark text-white py-4">
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
@@ -147,5 +725,712 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- FullCalendar JS -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize FullCalendar
+            const calendarEl = document.getElementById('calendar');
+            
+            const calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                },
+                height: 'auto',
+                navLinks: true, // can click day/week names to navigate views
+                selectable: true,
+                editable: true,
+                eventTimeFormat: {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    meridiem: 'short'
+                },
+                eventClick: function(info) {
+                    showEventDetails(info.event);
+                },
+                dateClick: function(info) {
+                    // When a date is clicked, open the add schedule modal and set the date
+                    document.getElementById('scheduleDate').value = info.dateStr;
+                    const addModal = new bootstrap.Modal(document.getElementById('addScheduleModal'));
+                    addModal.show();
+                },
+                eventDrop: function(info) {
+                    // Handle event drop (for drag and drop functionality)
+                    updateSchedule(info.event);
+                },
+                eventResize: function(info) {
+                    // Handle event resize
+                    updateSchedule(info.event);
+                },
+                events: [
+                    // Example events
+                    {% for schedule in schedules %}
+                    {
+                        id: '{{ schedule.id }}',
+                        title: '{{ schedule.barangay.name }}',
+                        start: '{{ schedule.time_start.strftime("%Y-%m-%d") }}T{{ schedule.time_start.strftime("%H:%M:%S") }}',
+                        end: '{{ schedule.time_start.strftime("%Y-%m-%d") }}T{{ schedule.time_end.strftime("%H:%M:%S") }}',
+                        status: '{{ schedule.status }}',
+                        classNames: ['event-{{ schedule.status }}'],
+                        extendedProps: {
+                            barangay_id: '{{ schedule.barangay.id }}',
+                            notes: '{{ schedule.notes | default("No additional notes") }}',
+                            contact: '{{ schedule.contact | default("Not specified") }}',
+                            progress: {{ schedule.progress | default(0) }},
+                            duration: {{ (schedule.time_end.hour * 60 + schedule.time_end.minute) - (schedule.time_start.hour * 60 + schedule.time_start.minute) }} // in minutes
+                        }
+                    },
+                    {% endfor %}
+                    
+                    // Add some sample data if no schedules exist
+                    {% if not schedules %}
+                    {
+                        id: '1',
+                        title: 'Sample: Barangay 1',
+                        start: '2023-09-18T08:00:00',
+                        end: '2023-09-18T10:00:00',
+                        status: 'scheduled',
+                        classNames: ['event-scheduled'],
+                        extendedProps: {
+                            barangay_id: '1',
+                            notes: 'Sample schedule for demonstration',
+                            contact: 'Contact: +63 912 345 6789',
+                            progress: 0,
+                            duration: 120
+                        }
+                    },
+                    {
+                        id: '2',
+                        title: 'Sample: Barangay 2',
+                        start: '2023-09-19T13:00:00',
+                        end: '2023-09-19T15:30:00',
+                        status: 'in-progress',
+                        classNames: ['event-in-progress'],
+                        extendedProps: {
+                            barangay_id: '2',
+                            notes: 'Sample schedule for demonstration',
+                            contact: 'Contact: +63 912 345 6789',
+                            progress: 50,
+                            duration: 150
+                        }
+                    },
+                    {
+                        id: '3',
+                        title: 'Sample: Barangay 3',
+                        start: '2023-09-17T09:00:00',
+                        end: '2023-09-17T11:00:00',
+                        status: 'completed',
+                        classNames: ['event-completed'],
+                        extendedProps: {
+                            barangay_id: '3',
+                            notes: 'Sample schedule for demonstration',
+                            contact: 'Contact: +63 912 345 6789',
+                            progress: 100,
+                            duration: 120
+                        }
+                    },
+                    {
+                        id: '4',
+                        title: 'Sample: Barangay 4',
+                        start: '2023-09-20T10:00:00',
+                        end: '2023-09-20T12:00:00',
+                        status: 'cancelled',
+                        classNames: ['event-cancelled'],
+                        extendedProps: {
+                            barangay_id: '4',
+                            notes: 'Sample schedule for demonstration',
+                            contact: 'Contact: +63 912 345 6789',
+                            progress: 0,
+                            duration: 120
+                        }
+                    },
+                    // Add recurring events for the next 4 weeks as examples
+                    {% for week in range(1, 5) %}
+                    {
+                        id: '{{ 5 + week }}',
+                        title: 'Sample: Barangay 1',
+                        start: '{{ (now + week * 7)|string }}T08:00:00',
+                        end: '{{ (now + week * 7)|string }}T10:00:00',
+                        status: 'scheduled',
+                        classNames: ['event-scheduled'],
+                        extendedProps: {
+                            barangay_id: '1',
+                            notes: 'Recurring weekly schedule',
+                            contact: 'Contact: +63 912 345 6789',
+                            progress: 0,
+                            duration: 120
+                        }
+                    },
+                    {% endfor %}
+                    {% endif %}
+                ]
+            });
+            
+            calendar.render();
+            
+            // Show event details in modal
+            function showEventDetails(event) {
+                const modal = document.getElementById('scheduleDetailsModal');
+                const title = document.getElementById('modalBarangayTitle');
+                const time = document.getElementById('modalScheduleTime');
+                const status = document.getElementById('modalStatusBadge');
+                const duration = document.getElementById('modalDuration');
+                const notes = document.getElementById('modalNotes');
+                const contact = document.getElementById('modalContact');
+                const progress = document.getElementById('modalProgress');
+                const progressContainer = document.getElementById('progressContainer');
+                
+                // Get event details
+                const eventStatus = event.extendedProps.status || event.status;
+                const eventBarangay = event.title;
+                const eventStart = event.start;
+                const eventEnd = event.end;
+                const eventNotes = event.extendedProps.notes || 'No additional notes';
+                const eventContact = event.extendedProps.contact || 'No contact information';
+                const eventProgress = event.extendedProps.progress || 0;
+                const eventDuration = event.extendedProps.duration || 0;
+                
+                // Format date and time
+                const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                const timeOptions = { hour: '2-digit', minute: '2-digit' };
+                
+                const formattedDate = eventStart.toLocaleDateString('en-US', dateOptions);
+                const formattedStartTime = eventStart.toLocaleTimeString('en-US', timeOptions);
+                const formattedEndTime = eventEnd ? eventEnd.toLocaleTimeString('en-US', timeOptions) : '';
+                
+                // Set modal content
+                title.textContent = eventBarangay;
+                time.textContent = `${formattedDate}, ${formattedStartTime} - ${formattedEndTime}`;
+                
+                // Set status badge
+                status.className = `badge bg-${getBadgeColor(eventStatus)}`;
+                status.textContent = eventStatus.charAt(0).toUpperCase() + eventStatus.slice(1);
+                
+                // Set other details
+                notes.textContent = eventNotes;
+                contact.textContent = eventContact;
+                
+                // Format duration
+                const hours = Math.floor(eventDuration / 60);
+                const minutes = eventDuration % 60;
+                const durationText = hours > 0 ? 
+                    `${hours} hour${hours > 1 ? 's' : ''}${minutes > 0 ? ` ${minutes} minute${minutes > 1 ? 's' : ''}` : ''}` : 
+                    `${minutes} minute${minutes > 1 ? 's' : ''}`;
+                duration.textContent = durationText;
+                
+                // Set progress bar (only show for in-progress and completed)
+                if (eventStatus === 'in-progress' || eventStatus === 'completed') {
+                    progressContainer.style.display = 'block';
+                    progress.style.width = `${eventProgress}%`;
+                    progress.textContent = `${eventProgress}%`;
+                    progress.setAttribute('aria-valuenow', eventProgress);
+                } else {
+                    progressContainer.style.display = 'none';
+                }
+                
+                // Set modal header color
+                modal.querySelector('.modal-header').className = `modal-header status-${eventStatus}`;
+                
+                // Configure buttons based on status
+                const btnStart = document.getElementById('btnStartTask');
+                const btnComplete = document.getElementById('btnCompleteTask');
+                const btnCancel = document.getElementById('btnCancelTask');
+                
+                btnStart.style.display = eventStatus === 'scheduled' ? 'block' : 'none';
+                btnComplete.style.display = eventStatus === 'in-progress' ? 'block' : 'none';
+                btnCancel.style.display = eventStatus === 'scheduled' || eventStatus === 'in-progress' ? 'block' : 'none';
+                
+                // Store event ID for button actions
+                modal.dataset.eventId = event.id;
+                
+                // Show modal
+                const modalInstance = new bootstrap.Modal(modal);
+                modalInstance.show();
+            }
+            
+            // Helper function to get badge color based on status
+            function getBadgeColor(status) {
+                switch(status) {
+                    case 'scheduled': return 'primary';
+                    case 'in-progress': return 'warning';
+                    case 'completed': return 'success';
+                    case 'cancelled': return 'danger';
+                    case 'rescheduled': return 'secondary';
+                    default: return 'primary';
+                }
+            }
+            
+            // Action button handlers
+            document.getElementById('btnStartTask').addEventListener('click', function() {
+                const eventId = document.getElementById('scheduleDetailsModal').dataset.eventId;
+                updateEventStatus(eventId, 'in-progress');
+            });
+            
+            document.getElementById('btnCompleteTask').addEventListener('click', function() {
+                const eventId = document.getElementById('scheduleDetailsModal').dataset.eventId;
+                updateEventStatus(eventId, 'completed');
+            });
+            
+            document.getElementById('btnCancelTask').addEventListener('click', function() {
+                const eventId = document.getElementById('scheduleDetailsModal').dataset.eventId;
+                updateEventStatus(eventId, 'cancelled');
+            });
+            
+            // Function to update event status
+            function updateEventStatus(eventId, newStatus) {
+                // Find event by ID
+                const event = calendar.getEventById(eventId);
+                if (event) {
+                    // Update event status and class
+                    event.setExtendedProp('status', newStatus);
+                    
+                    // Remove existing status class
+                    const classesToRemove = ['event-scheduled', 'event-in-progress', 'event-completed', 'event-cancelled', 'event-rescheduled'];
+                    event.setProp('classNames', event.classNames.filter(cls => !classesToRemove.includes(cls)));
+                    
+                    // Add new status class
+                    event.addClassNames([`event-${newStatus}`]);
+                    
+                    // If completed, set progress to 100%
+                    if (newStatus === 'completed') {
+                        event.setExtendedProp('progress', 100);
+                    }
+                    
+                    // Update progress for in-progress
+                    if (newStatus === 'in-progress') {
+                        event.setExtendedProp('progress', 50); // Default to 50%
+                    }
+                    
+                    // Close modal
+                    bootstrap.Modal.getInstance(document.getElementById('scheduleDetailsModal')).hide();
+                    
+                    // In a real app, you would also send this update to the server
+                    // This is a placeholder for the API call
+                    console.log(`Updated task ${eventId} to status: ${newStatus}`);
+                    
+                    // Show success message
+                    alert(`Schedule status updated to ${newStatus}`);
+                }
+            }
+            
+            // Function to update schedule when dragged or resized
+            function updateSchedule(event) {
+                // This would typically send the updated event data to the server
+                console.log('Schedule updated:', {
+                    id: event.id,
+                    start: event.start,
+                    end: event.end
+                });
+                
+                // Show success message
+                alert('Schedule updated successfully');
+            }
+            
+            // Handle recurring schedule toggle
+            document.getElementById('scheduleRecurring').addEventListener('change', function() {
+                document.getElementById('recurringOptions').style.display = this.checked ? 'block' : 'none';
+            });
+            
+            // Handle save schedule button
+            document.getElementById('saveSchedule').addEventListener('click', function() {
+                const form = document.getElementById('scheduleForm');
+                
+                // Basic validation
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return;
+                }
+                
+                const barangaySelect = document.getElementById('scheduleBarangay');
+                const barangayId = barangaySelect.value;
+                const barangayName = barangaySelect.options[barangaySelect.selectedIndex].text;
+                const date = document.getElementById('scheduleDate').value;
+                const startTime = document.getElementById('scheduleStartTime').value;
+                const endTime = document.getElementById('scheduleEndTime').value;
+                const notes = document.getElementById('scheduleNotes').value;
+                
+                // Create event object
+                const newEvent = {
+                    id: 'new-' + Date.now(), // Temporary ID
+                    title: barangayName,
+                    start: `${date}T${startTime}`,
+                    end: `${date}T${endTime}`,
+                    status: 'scheduled',
+                    classNames: ['event-scheduled'],
+                    extendedProps: {
+                        barangay_id: barangayId,
+                        notes: notes || 'No additional notes',
+                        contact: 'Not specified',
+                        progress: 0
+                    }
+                };
+                
+                // Add event to calendar
+                calendar.addEvent(newEvent);
+                
+                // Handle recurring events
+                if (document.getElementById('scheduleRecurring').checked) {
+                    const recurringType = document.getElementById('recurringType').value;
+                    const recurringEnd = document.getElementById('recurringEnd').value;
+                    
+                    // For demo purposes, we'll just add a few recurring events
+                    // In a real app, you would need more sophisticated logic
+                    if (recurringType === 'weekly') {
+                        // Add next 3 weekly occurrences
+                        for (let i = 1; i <= 3; i++) {
+                            const nextDate = new Date(date);
+                            nextDate.setDate(nextDate.getDate() + (i * 7));
+                            
+                            const nextDateStr = nextDate.toISOString().split('T')[0];
+                            
+                            const recurringEvent = {
+                                id: 'new-recurring-' + i + '-' + Date.now(),
+                                title: barangayName,
+                                start: `${nextDateStr}T${startTime}`,
+                                end: `${nextDateStr}T${endTime}`,
+                                status: 'scheduled',
+                                classNames: ['event-scheduled'],
+                                extendedProps: {
+                                    barangay_id: barangayId,
+                                    notes: notes || 'Recurring collection',
+                                    contact: 'Not specified',
+                                    progress: 0
+                                }
+                            };
+                            
+                            calendar.addEvent(recurringEvent);
+                        }
+                    }
+                }
+                
+                // Close modal
+                bootstrap.Modal.getInstance(document.getElementById('addScheduleModal')).hide();
+                
+                // Show success message
+                alert('Schedule added successfully');
+                
+                // Reset form
+                form.reset();
+            });
+            
+            // Handle filter actions
+            document.getElementById('applyFilters').addEventListener('click', function() {
+                applyFilters();
+            });
+            
+            document.getElementById('resetFilters').addEventListener('click', function() {
+                resetFilters();
+            });
+            
+            function applyFilters() {
+                // Get selected status filters
+                const statusFilters = [];
+                document.querySelectorAll('.filter-status:checked').forEach(checkbox => {
+                    statusFilters.push(checkbox.value);
+                });
+                
+                // Get barangay filter
+                const barangayFilter = document.getElementById('filterBarangay').value;
+                
+                // Get date range
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                
+                // Apply filters to events
+                calendar.getEvents().forEach(event => {
+                    const eventStatus = event.extendedProps.status || event.status;
+                    const eventBarangayId = event.extendedProps.barangay_id;
+                    const eventDate = event.start;
+                    
+                    // Check if event matches filters
+                    const statusMatch = statusFilters.includes(eventStatus);
+                    const barangayMatch = barangayFilter === 'all' || eventBarangayId === barangayFilter;
+                    
+                    // Date range filter
+                    let dateMatch = true;
+                    if (startDate && eventDate < new Date(startDate)) {
+                        dateMatch = false;
+                    }
+                    if (endDate && eventDate > new Date(endDate)) {
+                        dateMatch = false;
+                    }
+                    
+                    // Show or hide event based on filters
+                    if (statusMatch && barangayMatch && dateMatch) {
+                        event.setProp('display', 'auto');
+                    } else {
+                        event.setProp('display', 'none');
+                    }
+                });
+            }
+            
+            function resetFilters() {
+                // Reset status checkboxes
+                document.querySelectorAll('.filter-status').forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+                
+                // Reset barangay select
+                document.getElementById('filterBarangay').value = 'all';
+                
+                // Reset date range
+                document.getElementById('startDate').value = '';
+                document.getElementById('endDate').value = '';
+                
+                // Show all events
+                calendar.getEvents().forEach(event => {
+                    event.setProp('display', 'auto');
+                });
+            }
+            
+            // Print calendar
+            document.getElementById('printSchedule').addEventListener('click', function() {
+                window.print();
+            });
+
+            // Add Schedule Form - Check if barangay selection is collector's assigned area
+            document.getElementById('scheduleBarangay').addEventListener('change', function() {
+                const selectedBarangayId = this.value;
+                const assignedBarangayId = "{{ collector.assigned_barangay_id }}";
+                
+                if (selectedBarangayId !== assignedBarangayId) {
+                    document.getElementById('adminApprovalNote').style.display = 'block';
+                } else {
+                    document.getElementById('adminApprovalNote').style.display = 'none';
+                }
+            });
+            
+            // Function to update event status with admin and user notifications
+            function updateEventStatus(eventId, newStatus) {
+                // ...existing status update code...
+                
+                // Add integration with admin and user systems
+                if (document.getElementById('shareWithAdmins').checked) {
+                    // Notify admin system of status change
+                    fetch('/api/admin/schedule-update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            schedule_id: eventId,
+                            status: newStatus,
+                            updated_by: "{{ current_user.id }}",
+                            collector_id: "{{ collector.id }}"
+                        })
+                    }).then(response => {
+                        if (response.ok) {
+                            console.log('Admin system notified of schedule update');
+                        }
+                    }).catch(err => {
+                        console.error('Failed to notify admin system:', err);
+                    });
+                }
+                
+                if (document.getElementById('shareWithResidents').checked && 
+                    (newStatus === 'in-progress' || newStatus === 'completed')) {
+                    // Notify resident system of relevant status changes
+                    fetch('/api/users/schedule-notification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            schedule_id: eventId,
+                            status: newStatus,
+                            barangay_id: event.extendedProps.barangay_id,
+                            message: newStatus === 'in-progress' ? 
+                                'Collection has started in your area' : 
+                                'Collection has been completed in your area'
+                        })
+                    }).then(response => {
+                        if (response.ok) {
+                            console.log('Residents notified of collection status');
+                        }
+                    }).catch(err => {
+                        console.error('Failed to send resident notifications:', err);
+                    });
+                }
+                
+                // Show appropriate integration confirmation
+                let integrationMsg = '';
+                if (document.getElementById('shareWithAdmins').checked && document.getElementById('shareWithResidents').checked) {
+                    integrationMsg = 'Schedule updated and shared with admin system and residents';
+                } else if (document.getElementById('shareWithAdmins').checked) {
+                    integrationMsg = 'Schedule updated and shared with admin system';
+                } else if (document.getElementById('shareWithResidents').checked) {
+                    integrationMsg = 'Schedule updated and shared with residents';
+                } else {
+                    integrationMsg = 'Schedule updated (changes only visible to you)';
+                }
+                
+                // Show toast or alert with the integration message
+                alert(integrationMsg);
+            }
+            
+            // Sync with admin system
+            document.getElementById('syncWithAdmin').addEventListener('click', function() {
+                this.disabled = true;
+                this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Syncing...';
+                
+                fetch('/api/collector/sync-admin-schedules')
+                    .then(response => response.json())
+                    .then(data => {
+                        // Add new events from admin system
+                        data.schedules.forEach(schedule => {
+                            // Check if event already exists
+                            const existingEvent = calendar.getEventById('admin-' + schedule.id);
+                            if (!existingEvent) {
+                                // Add new event with admin prefix in ID
+                                calendar.addEvent({
+                                    id: 'admin-' + schedule.id,
+                                    title: schedule.title + ' (Admin)',
+                                    start: schedule.start,
+                                    end: schedule.end,
+                                    status: schedule.status,
+                                    classNames: ['event-' + schedule.status, 'admin-schedule'],
+                                    extendedProps: {
+                                        barangay_id: schedule.barangay_id,
+                                        notes: schedule.notes || 'Administrative schedule',
+                                        contact: schedule.contact || 'Admin Office',
+                                        progress: schedule.progress || 0,
+                                        duration: schedule.duration || 120,
+                                        admin_created: true
+                                    }
+                                });
+                            }
+                        });
+                        
+                        this.disabled = false;
+                        this.innerHTML = '<i class="bi bi-cloud-download"></i> Sync with Admin System';
+                        alert(`Synchronized ${data.schedules.length} schedules from the admin system`);
+                    })
+                    .catch(error => {
+                        console.error('Error syncing with admin system:', error);
+                        this.disabled = false;
+                        this.innerHTML = '<i class="bi bi-cloud-download"></i> Sync with Admin System';
+                        alert('Failed to sync with admin system. Please try again.');
+                    });
+            });
+            
+            // Link to admin schedule
+            document.getElementById('linkAdminSchedule').addEventListener('click', function() {
+                const adminScheduleId = document.getElementById('adminScheduleSelect').value;
+                if (!adminScheduleId) {
+                    alert('Please select an admin schedule to link');
+                    return;
+                }
+                
+                // Make API call to link schedules
+                fetch('/api/collector/link-admin-schedule', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        collector_id: "{{ collector.id }}",
+                        admin_schedule_id: adminScheduleId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    bootstrap.Modal.getInstance(document.getElementById('adminLinkModal')).hide();
+                    alert('Successfully linked to administrative schedule');
+                    
+                    // Refresh calendar to show linked schedule
+                    location.reload();
+                })
+                .catch(error => {
+                    console.error('Error linking to admin schedule:', error);
+                    alert('Failed to link to administrative schedule');
+                });
+            });
+
+            // Handle save schedule with admin/user integration
+            document.getElementById('saveSchedule').addEventListener('click', function() {
+                // ...existing schedule saving code...
+                
+                // Additional code for integration
+                if (document.getElementById('notifyResidents').checked) {
+                    // Send notification to residents about new schedule
+                    fetch('/api/users/schedule-notification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            barangay_id: document.getElementById('scheduleBarangay').value,
+                            message: `New waste collection scheduled for ${document.getElementById('scheduleDate').value} at ${document.getElementById('scheduleStartTime').value}`,
+                            collection_type: document.getElementById('collectionType').value
+                        })
+                    }).catch(err => console.error('Failed to notify residents:', err));
+                }
+                
+                // Show admin link modal if schedule is not in assigned area
+                const selectedBarangayId = document.getElementById('scheduleBarangay').value;
+                const assignedBarangayId = "{{ collector.assigned_barangay_id }}";
+                
+                if (selectedBarangayId !== assignedBarangayId) {
+                    // Fetch available admin schedules for this barangay
+                    fetch(`/api/admin/schedules?barangay_id=${selectedBarangayId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const select = document.getElementById('adminScheduleSelect');
+                            select.innerHTML = '<option value="" selected disabled>Select a schedule to link</option>';
+                            
+                            data.schedules.forEach(schedule => {
+                                const option = document.createElement('option');
+                                option.value = schedule.id;
+                                option.textContent = `${schedule.title} - ${new Date(schedule.start).toLocaleDateString()} ${new Date(schedule.start).toLocaleTimeString()}`;
+                                select.appendChild(option);
+                            });
+                            
+                            const adminLinkModal = new bootstrap.Modal(document.getElementById('adminLinkModal'));
+                            adminLinkModal.show();
+                        })
+                        .catch(err => console.error('Failed to fetch admin schedules:', err));
+                }
+            });
+
+            // Add calendar barangay filter functionality
+            document.getElementById('calendarBarangayFilter').addEventListener('change', function() {
+                const barangayId = this.value;
+                
+                calendar.getEvents().forEach(event => {
+                    if (barangayId === 'all' || event.extendedProps.barangay_id === barangayId) {
+                        event.setProp('display', 'auto');
+                    } else {
+                        event.setProp('display', 'none');
+                    }
+                });
+            });
+            
+            // Update the fetch method to get admin schedules for barangay outside of assigned area
+            document.getElementById('scheduleBarangay').addEventListener('change', function() {
+                const selectedBarangayId = this.value;
+                const assignedBarangayId = "{{ collector.assigned_barangay_id }}";
+                
+                if (selectedBarangayId !== assignedBarangayId) {
+                    document.getElementById('adminApprovalNote').style.display = 'block';
+                    
+                    // Check if there are any admin-created schedules for this barangay
+                    fetch(`/api/admin/schedules?barangay_id=${selectedBarangayId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const adminScheduleCount = data.schedules?.length || 0;
+                            
+                            // Show a note about available admin schedules
+                            if (adminScheduleCount > 0) {
+                                const scheduleNote = document.getElementById('adminApprovalNote');
+                                scheduleNote.innerHTML = `
+                                    <i class="bi bi-info-circle-fill text-info"></i>
+                                    ${adminScheduleCount} admin schedule(s) available for this barangay. 
+                                    You'll have an option to link to them after saving.
+                                `;
+                                scheduleNote.className = 'form-text text-info';
+                            }
+                        })
+                        .catch(err => console.error('Failed to fetch admin schedules:', err));
+                } else {
+                    document.getElementById('adminApprovalNote').style.display = 'none';
+                }
+            });
+        });
+    </script>
 </body>
 </html>

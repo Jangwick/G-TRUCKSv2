@@ -14,6 +14,110 @@
             width: 100%;
             border-radius: 8px;
         }
+        
+        /* Enhanced popup styling for collector profiles */
+        .admin-collector-popup {
+            min-width: 280px;
+        }
+        
+        .admin-collector-popup .collector-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .admin-collector-popup .collector-image {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .admin-collector-popup .collector-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 3px;
+        }
+        
+        .admin-collector-popup .collector-details {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 5px 10px;
+            text-align: left;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .admin-collector-popup .label {
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .admin-collector-popup .value {
+            color: #333;
+        }
+        
+        .admin-collector-popup .actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Admin profile marker styling */
+        .admin-collector-marker {
+            background-color: white;
+            border: 3px solid #198754;
+            border-radius: 50%;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+            width: 48px !important;
+            height: 48px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+
+        .admin-collector-marker:hover {
+            transform: scale(1.1);
+        }
+
+        .admin-collector-marker img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .admin-collector-marker.inactive {
+            border-color: #6c757d;
+            opacity: 0.7;
+        }
+        
+        .admin-collector-marker-status {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background-color: #198754;
+            border: 2px solid white;
+        }
+        
+        .admin-collector-marker-status.inactive {
+            background-color: #6c757d;
+        }
+        
+        /* Logo styling for sidebar - keeping the container but removing the logo itself */
+        .sidebar-logo-container {
+            padding: 1rem 0;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -22,9 +126,9 @@
             <!-- Sidebar -->
             <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse">
                 <div class="position-sticky pt-3">
-                    <div class="text-center mb-4">
-                        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="G-TRUCKS Logo" height="50">
-                        <h5 class="text-white mt-2">Admin Panel</h5>
+                    <div class="sidebar-logo-container">
+                         <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="G-TRUCKS Logo" height="50">
+                        <h5 class="text-white">Admin Panel</h5>
                     </div>
                     <ul class="nav flex-column">
                         <li class="nav-item">
@@ -215,6 +319,14 @@
         // Store markers for collectors
         const markers = {};
         
+        // Function to get the correct avatar URL with consistent path handling
+        function getCollectorAvatarUrl(avatarPath) {
+            if (!avatarPath) {
+                return '{{ url_for("static", filename="img/avatar-default.png") }}';
+            }
+            return '{{ url_for("static", filename="uploads/avatars") }}/' + avatarPath + '?v=' + Date.now();
+        }
+        
         // Function to update map with collector locations
         function updateMap() {
             fetch('/api/collectors-location')
@@ -222,34 +334,106 @@
                 .then(data => {
                     data.forEach(collector => {
                         if (markers[collector.id]) {
-                            // Update existing marker
+                            // Update existing marker position
                             markers[collector.id].setLatLng([collector.lat, collector.lng]);
-                            markers[collector.id].bindPopup(`
-                                <strong>${collector.name}</strong><br>
-                                Vehicle: ${collector.vehicle_id}<br>
-                                Barangay: ${collector.barangay}<br>
-                                Last Updated: ${collector.last_updated}
-                            `);
+                            
+                            // Update popup content
+                            const popupContent = createAdminCollectorPopup(collector);
+                            markers[collector.id].setPopupContent(popupContent);
                         } else {
-                            // Create new marker
-                            const truckIcon = L.icon({
-                                iconUrl: '/static/img/truck-icon.png',
-                                iconSize: [32, 32],
-                                iconAnchor: [16, 32],
-                                popupAnchor: [0, -32]
+                            // Direct avatar URL format from profile page  
+                            const avatarUrl = getCollectorAvatarUrl(collector.avatar_path);
+                                    
+                            const isActive = collector.status === 'active';
+                            const profileMarkerIcon = L.divIcon({
+                                className: `admin-collector-marker ${!isActive ? 'inactive' : ''}`,
+                                html: `
+                                    <img src="${avatarUrl}" 
+                                         alt="${collector.name || 'Collector'}" 
+                                         onerror="this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                                    <span class="admin-collector-marker-status ${!isActive ? 'inactive' : ''}"></span>
+                                `,
+                                iconSize: [48, 48],
+                                iconAnchor: [24, 48],
+                                popupAnchor: [0, -35]
                             });
                             
-                            markers[collector.id] = L.marker([collector.lat, collector.lng], {icon: truckIcon}).addTo(map);
-                            markers[collector.id].bindPopup(`
-                                <strong>${collector.name}</strong><br>
-                                Vehicle: ${collector.vehicle_id}<br>
-                                Barangay: ${collector.barangay}<br>
-                                Last Updated: ${collector.last_updated}
-                            `);
+                            // Save collector data with marker for reference
+                            const marker = L.marker([collector.lat, collector.lng], {
+                                icon: profileMarkerIcon
+                            }).addTo(map);
+                            
+                            marker._collectorData = collector;
+                            markers[collector.id] = marker;
+                            
+                            // Create enhanced popup with collector profile
+                            const popupContent = createAdminCollectorPopup(collector);
+                            markers[collector.id].bindPopup(popupContent, {
+                                className: 'admin-collector-popup-wrapper',
+                                minWidth: 280
+                            });
                         }
                     });
                 })
                 .catch(error => console.error('Error fetching collector locations:', error));
+        }
+        
+        // Create an enhanced popup with collector profile image and details for admin view
+        function createAdminCollectorPopup(collector) {
+            // Direct avatar URL format from profile page
+            const avatarUrl = getCollectorAvatarUrl(collector.avatar_path);
+                
+            return `
+                <div class="admin-collector-popup">
+                    <div class="collector-header">
+                        <img src="${avatarUrl}" 
+                             alt="${collector.name || 'Collector'}" 
+                             class="collector-image" 
+                             onerror="this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                        <div>
+                            <div class="collector-name">${collector.name || 'Collector'}</div>
+                            <div><span class="badge bg-${getStatusColor(collector.status || 'active')}">${collector.status || 'Active'}</span></div>
+                            <small class="text-muted">ID: ${collector.id}</small>
+                        </div>
+                    </div>
+                    <div class="collector-details">
+                        <div class="label">Vehicle ID:</div>
+                        <div class="value">${collector.vehicle_id || 'N/A'}</div>
+                        <div class="label">Barangay:</div>
+                        <div class="value">${collector.barangay || 'Not assigned'}</div>
+                        <div class="label">Phone:</div>
+                        <div class="value">${collector.phone || 'Not available'}</div>
+                        <div class="label">Location:</div>
+                        <div class="value">${collector.location_name || `${collector.lat.toFixed(6)}, ${collector.lng.toFixed(6)}`}</div>
+                        <div class="label">Last Updated:</div>
+                        <div class="value">${collector.last_updated || 'Just now'}</div>
+                        <div class="label">Status:</div>
+                        <div class="value">${collector.active_status || 'On duty'}</div>
+                    </div>
+                    <div class="actions">
+                        <a href="/admin/collectors/${collector.id}" class="btn btn-sm btn-primary">
+                            <i class="bi bi-person-badge"></i> View Profile
+                        </a>
+                        <button onclick="sendMessageToCollector(${collector.id})" class="btn btn-sm btn-success">
+                            <i class="bi bi-chat-dots"></i> Message
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function getStatusColor(status) {
+            switch(status.toLowerCase()) {
+                case 'active': return 'success';
+                case 'inactive': return 'secondary';
+                case 'on break': return 'warning';
+                case 'emergency': return 'danger';
+                default: return 'primary';
+            }
+        }
+        
+        function sendMessageToCollector(collectorId) {
+            alert(`Messaging functionality for collector #${collectorId} will be implemented in the next update.`);
         }
         
         // Initial map update
@@ -279,6 +463,66 @@
                     .catch(error => console.error('Error tracking collector:', error));
             });
         });
+        
+        // Track button with enhanced collector details
+        document.querySelectorAll('.track-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const collectorId = this.getAttribute('data-id');
+                
+                fetch(`/api/collector-details?id=${collectorId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data) {
+                            map.setView([data.lat, data.lng], 16);
+                            
+                            if (!markers[data.id]) {
+                                // Direct avatar URL format from profile page
+                                const avatarUrl = getCollectorAvatarUrl(data.avatar_path);
+                                    
+                                const isActive = data.status === 'active';
+                                const profileMarkerIcon = L.divIcon({
+                                    className: `admin-collector-marker ${!isActive ? 'inactive' : ''}`,
+                                    html: `
+                                        <img src="${avatarUrl}" 
+                                             alt="${data.name || 'Collector'}" 
+                                             onerror="this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                                        <span class="admin-collector-marker-status ${!isActive ? 'inactive' : ''}"></span>
+                                    `,
+                                    iconSize: [48, 48],
+                                    iconAnchor: [24, 48],
+                                    popupAnchor: [0, -35]
+                                });
+                                
+                                const marker = L.marker([data.lat, data.lng], {
+                                    icon: profileMarkerIcon
+                                }).addTo(map);
+                                
+                                marker._collectorData = data;
+                                markers[data.id] = marker;
+                                
+                                // Create enhanced popup with collector profile
+                                const popupContent = createAdminCollectorPopup(data);
+                                markers[data.id].bindPopup(popupContent, {
+                                    className: 'admin-collector-popup-wrapper',
+                                    minWidth: 280
+                                });
+                            }
+                            
+                            // Open the popup
+                            if (markers[data.id]) {
+                                markers[data.id].openPopup();
+                            }
+                            
+                            // Highlight row in table
+                            const tableRows = document.querySelectorAll('#collectors-table tr');
+                            tableRows.forEach(row => row.classList.remove('table-active'));
+                            const activeRow = document.querySelector(`tr[data-id="${data.id}"]`);
+                            if (activeRow) activeRow.classList.add('table-active');
+                        }
+                    })
+                    .catch(error => console.error('Error tracking collector:', error));
+        });
+    });
     </script>
 </body>
 </html>
