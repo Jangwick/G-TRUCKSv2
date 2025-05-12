@@ -340,8 +340,26 @@
                             // Update popup content
                             const popupContent = createAdminCollectorPopup(collector);
                             markers[collector.id].setPopupContent(popupContent);
+
+                            // Optionally, update icon if status or avatar can change
+                            const avatarUrl = getCollectorAvatarUrl(collector.avatar_path);
+                            const isActive = collector.status === 'active';
+                            const updatedProfileMarkerIcon = L.divIcon({
+                                className: `admin-collector-marker ${!isActive ? 'inactive' : ''}`,
+                                html: `
+                                    <img src="${avatarUrl}" 
+                                         alt="${collector.name || 'Collector'}" 
+                                         onerror="console.error('Failed to load avatar for existing marker:', '${avatarUrl}', 'Collector ID:', '${collector.id}'); this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                                    <span class="admin-collector-marker-status ${!isActive ? 'inactive' : ''}"></span>
+                                `,
+                                iconSize: [48, 48],
+                                iconAnchor: [24, 24],
+                                popupAnchor: [0, -35]
+                            });
+                            markers[collector.id].setIcon(updatedProfileMarkerIcon);
+
                         } else {
-                            // Direct avatar URL format from profile page  
+                            // Create new marker
                             const avatarUrl = getCollectorAvatarUrl(collector.avatar_path);
                                     
                             const isActive = collector.status === 'active';
@@ -350,15 +368,14 @@
                                 html: `
                                     <img src="${avatarUrl}" 
                                          alt="${collector.name || 'Collector'}" 
-                                         onerror="this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                                         onerror="console.error('Failed to load avatar for new marker:', '${avatarUrl}', 'Collector ID:', '${collector.id}'); this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
                                     <span class="admin-collector-marker-status ${!isActive ? 'inactive' : ''}"></span>
                                 `,
                                 iconSize: [48, 48],
-                                iconAnchor: [24, 48],
+                                iconAnchor: [24, 24],
                                 popupAnchor: [0, -35]
                             });
                             
-                            // Save collector data with marker for reference
                             const marker = L.marker([collector.lat, collector.lng], {
                                 icon: profileMarkerIcon
                             }).addTo(map);
@@ -366,10 +383,8 @@
                             marker._collectorData = collector;
                             markers[collector.id] = marker;
                             
-                            // Create enhanced popup with collector profile
                             const popupContent = createAdminCollectorPopup(collector);
                             markers[collector.id].bindPopup(popupContent, {
-                                className: 'admin-collector-popup-wrapper',
                                 minWidth: 280
                             });
                         }
@@ -380,7 +395,6 @@
         
         // Create an enhanced popup with collector profile image and details for admin view
         function createAdminCollectorPopup(collector) {
-            // Direct avatar URL format from profile page
             const avatarUrl = getCollectorAvatarUrl(collector.avatar_path);
                 
             return `
@@ -389,7 +403,7 @@
                         <img src="${avatarUrl}" 
                              alt="${collector.name || 'Collector'}" 
                              class="collector-image" 
-                             onerror="this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                             onerror="console.error('Failed to load avatar in popup:', '${avatarUrl}', 'Collector ID:', '${collector.id}'); this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
                         <div>
                             <div class="collector-name">${collector.name || 'Collector'}</div>
                             <div><span class="badge bg-${getStatusColor(collector.status || 'active')}">${collector.status || 'Active'}</span></div>
@@ -485,7 +499,7 @@
                                     html: `
                                         <img src="${avatarUrl}" 
                                              alt="${data.name || 'Collector'}" 
-                                             onerror="this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
+                                             onerror="console.error('Failed to load avatar for new marker:', '${avatarUrl}', 'Collector ID:', '${data.id}'); this.onerror=null; this.src='{{ url_for('static', filename='img/avatar-default.png') }}';">
                                         <span class="admin-collector-marker-status ${!isActive ? 'inactive' : ''}"></span>
                                     `,
                                     iconSize: [48, 48],
