@@ -7,8 +7,9 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/collector.css') }}">
+    <!-- Add Leaflet Routing Machine CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/collector.css') }}">
     <style>
         body {
             min-height: 100vh;
@@ -253,42 +254,46 @@
             font-size: 14px;
         }
 
-        /* Direction panel styling */
-        .directions-panel {
+        /* Navigation panel styles */
+        .route-instructions {
             max-height: 200px;
             overflow-y: auto;
             margin-top: 10px;
+            border-radius: 0.25rem;
             border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            display: none;
         }
         
-        .directions-panel .list-group-item {
-            padding: 0.5rem 1rem;
+        .instruction-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
-        .direction-icon {
-            margin-right: 10px;
-            display: inline-block;
+        .instruction-item:last-child {
+            border-bottom: none;
+        }
+        
+        .instruction-icon {
             width: 24px;
             height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             background-color: #f8f9fa;
             border-radius: 50%;
-            text-align: center;
-            line-height: 24px;
+            flex-shrink: 0;
         }
         
-        /* Custom route styling */
+        .instruction-distance {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-left: auto;
+        }
+        
+        /* Hide default OSRM container but keep functionality */
         .leaflet-routing-container {
-            display: none; /* Hide default routing container */
-        }
-        
-        .custom-route-alt {
-            opacity: 0.6;
-        }
-        
-        .navigation-controls {
-            margin-top: 10px;
             display: none;
         }
     </style>
@@ -382,6 +387,9 @@
                                 <span id="destinationEta" class="ms-2 fw-bold"></span>
                             </div>
                         </div>
+                        <div id="route-instructions-container" class="route-instructions mt-3" style="display: none;">
+                            <div id="route-instructions-list"></div>
+                        </div>
                         <div class="mt-3 d-flex flex-wrap gap-2">
                             <button id="refreshLocation" class="btn btn-primary">
                                 <i class="bi bi-arrow-clockwise"></i> Refresh Location
@@ -395,36 +403,6 @@
                             <button id="reportIssue" class="btn btn-outline-warning">
                                 <i class="bi bi-exclamation-triangle"></i> Report Issue
                             </button>
-                            <button id="toggleDirections" class="btn btn-outline-info" style="display: none;">
-                                <i class="bi bi-signpost-2"></i> Show Directions
-                            </button>
-                        </div>
-                        
-                        <!-- Add directions panel -->
-                        <div id="directions-panel" class="directions-panel">
-                            <div class="card">
-                                <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
-                                    <h6 class="mb-0">Turn-by-turn Directions</h6>
-                                    <button type="button" class="btn-close" aria-label="Close" id="closeDirections"></button>
-                                </div>
-                                <ul class="list-group list-group-flush" id="directions-list"></ul>
-                            </div>
-                        </div>
-                        
-                        <!-- Add navigation controls -->
-                        <div class="navigation-controls" id="navigation-controls">
-                            <div class="d-flex justify-content-between mb-2">
-                                <button id="prev-instruction" class="btn btn-sm btn-outline-secondary">
-                                    <i class="bi bi-arrow-left"></i> Previous
-                                </button>
-                                <span class="badge bg-primary" id="current-step">Step 1/5</span>
-                                <button id="next-instruction" class="btn btn-sm btn-outline-secondary">
-                                    Next <i class="bi bi-arrow-right"></i>
-                                </button>
-                            </div>
-                            <div class="alert alert-info py-2 mb-0" id="current-instruction">
-                                <i class="bi bi-info-circle me-1"></i> Navigate to your destination
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -683,6 +661,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Add Leaflet Routing Machine JS -->
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
@@ -722,6 +701,10 @@
         // Destination marker and route line
         let destinationMarker = null;
         let routeLine = null;
+
+        // Variables for routing
+        let routeControl = null;
+        let routeInstructions = [];
 
         // Start or stop location tracking based on toggle
         document.getElementById('statusToggle').addEventListener('change', function() {
@@ -980,193 +963,150 @@
             document.getElementById('destinationInfo').style.display = 'block';
             document.getElementById('destinationName').textContent = name || 'Set destination';
             document.getElementById('clearDestination').style.display = 'inline-block';
-            document.getElementById('toggleDirections').style.display = 'inline-block';
             
-            // Update the route using pathfinding
-            updateRouteWithPathfinding();
+            // Update the route
+            updateRoute();
+            
+            // Fit map to show both current location and destination
+            if (currentLocationMarker) {
+                const bounds = L.latLngBounds(
+                    currentLocationMarker.getLatLng(),
+                    destinationMarker.getLatLng()
+                );
+                map.fitBounds(bounds, {padding: [50, 50]});
+            }
         }
         
-        // Function to update route using proper pathfinding
-        function updateRouteWithPathfinding() {
+        // Function to update the route line with proper navigation
+        function updateRoute() {
             if (!currentLocationMarker || !destinationMarker) return;
             
             const start = currentLocationMarker.getLatLng();
             const end = destinationMarker.getLatLng();
             
-            // Remove existing route control if any
+            // Remove existing route if any
             if (routeControl) {
                 map.removeControl(routeControl);
+                routeControl = null;
             }
             
-            // Create new route with Leaflet Routing Machine
+            // Create a new route using Leaflet Routing Machine
             routeControl = L.Routing.control({
                 waypoints: [
                     L.latLng(start.lat, start.lng),
                     L.latLng(end.lat, end.lng)
                 ],
-                router: L.Routing.osrmv1({
-                    serviceUrl: 'https://router.project-osrm.org/route/v1',
-                    profile: 'driving' // Options: driving, cycling, walking
-                }),
-                lineOptions: {
-                    styles: [
-                        { color: 'black', opacity: 0.15, weight: 9 },
-                        { color: '#3388ff', opacity: 0.8, weight: 6 },
-                        { color: 'white', opacity: 0.3, weight: 4 }
-                    ]
-                },
                 routeWhileDragging: false,
                 addWaypoints: false,
-                draggableWaypoints: false,
-                fitSelectedRoutes: true,
-                showAlternatives: true,
-                altLineOptions: {
+                createMarker: function() { return null; }, // Don't create markers, we already have them
+                lineOptions: {
                     styles: [
-                        { color: 'black', opacity: 0.15, weight: 9 },
-                        { color: '#6c757d', opacity: 0.6, weight: 6 },
-                        { color: 'white', opacity: 0.3, weight: 4 }
-                    ],
-                    extendToWaypoints: false,
-                    missingRouteTolerance: 0
-                }
+                        {color: '#3388ff', opacity: 0.8, weight: 5},
+                        {color: 'white', opacity: 0.3, weight: 8}
+                    ]
+                },
+                show: false // Don't show the default instructions panel
             }).addTo(map);
             
-            // Event when route is found
+            // Listen for route found event to get instructions
             routeControl.on('routesfound', function(e) {
                 const routes = e.routes;
-                const summary = routes[0].summary;
+                const route = routes[0]; // Get the first route
                 
-                // Update ETA and distance information
-                const distance = formatDistance(summary.totalDistance);
-                const time = formatTime(summary.totalTime);
+                // Calculate ETA
+                const distanceInMeters = route.summary.totalDistance;
+                const distanceText = distanceInMeters > 1000 ? 
+                    `${(distanceInMeters / 1000).toFixed(1)} km` : 
+                    `${Math.round(distanceInMeters)} m`;
                 
-                document.getElementById('destinationEta').textContent = `${distance} (ETA: ${time})`;
+                const timeInSeconds = route.summary.totalTime;
+                const timeInMinutes = Math.round(timeInSeconds / 60);
+                const etaText = timeInMinutes > 60 ? 
+                    `${Math.floor(timeInMinutes / 60)} hr ${timeInMinutes % 60} min` : 
+                    `${timeInMinutes} min`;
                 
-                // Generate turn-by-turn directions
-                generateDirections(routes[0].instructions);
+                document.getElementById('destinationEta').textContent = `${distanceText} (ETA: ${etaText})`;
                 
-                // Fit the map to the route
-                map.fitBounds(routes[0].bounds, {
-                    padding: [50, 50],
-                    maxZoom: 15
-                });
+                // Extract and display turn-by-turn instructions
+                const instructions = route.instructions || [];
+                displayRouteInstructions(instructions);
             });
         }
         
-        // Function to format time from seconds to readable format
-        function formatTime(seconds) {
-            const minutes = Math.floor(seconds / 60);
+        // Function to display turn-by-turn instructions
+        function displayRouteInstructions(instructions) {
+            const container = document.getElementById('route-instructions-list');
+            if (!container) return;
             
-            if (minutes < 60) {
-                return `${minutes} min`;
-            } else {
-                const hours = Math.floor(minutes / 60);
-                const remainingMinutes = minutes % 60;
-                return `${hours} hr ${remainingMinutes} min`;
+            // Clear previous instructions
+            container.innerHTML = '';
+            
+            // Show the container
+            document.getElementById('route-instructions-container').style.display = 'block';
+            
+            if (!instructions || instructions.length === 0) {
+                container.innerHTML = '<div class="instruction-item">No navigation instructions available.</div>';
+                return;
             }
-        }
-        
-        // Function to format distance
-        function formatDistance(meters) {
-            if (meters < 1000) {
-                return `${Math.round(meters)} m`;
-            } else {
-                return `${(meters/1000).toFixed(1)} km`;
-            }
-        }
-        
-        // Generate turn-by-turn directions
-        function generateDirections(instructions) {
-            currentInstructions = instructions;
-            currentInstructionIndex = 0;
             
-            const directionsList = document.getElementById('directions-list');
-            directionsList.innerHTML = '';
-            
+            // Create elements for each instruction
             instructions.forEach((instruction, index) => {
-                const li = document.createElement('li');
-                li.className = 'list-group-item';
-                li.setAttribute('data-index', index);
+                // Skip the last "arrive at destination" instruction if we have more than one
+                if (index === instructions.length - 1 && instructions.length > 1 && instruction.type === 'DestinationReached') {
+                    return;
+                }
                 
-                // Get appropriate icon based on direction type
-                let iconClass = 'arrow-right';
-                if (instruction.type.includes('Left')) iconClass = 'arrow-left';
-                else if (instruction.type.includes('Right')) iconClass = 'arrow-right';
-                else if (instruction.type.includes('SharpLeft')) iconClass = 'arrow-90deg-left';
-                else if (instruction.type.includes('SharpRight')) iconClass = 'arrow-90deg-right';
-                else if (instruction.type.includes('SlightLeft')) iconClass = 'arrow-up-left';
-                else if (instruction.type.includes('SlightRight')) iconClass = 'arrow-up-right';
-                else if (instruction.type.includes('Straight')) iconClass = 'arrow-up';
-                else if (instruction.type.includes('Roundabout')) iconClass = 'arrow-repeat';
-                else if (instruction.type.includes('Destination')) iconClass = 'geo-alt';
+                const item = document.createElement('div');
+                item.className = 'instruction-item';
                 
-                li.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <div class="direction-icon">
-                            <i class="bi bi-${iconClass}"></i>
-                        </div>
-                        <div>
-                            <div>${instruction.text}</div>
-                            <small class="text-muted">${formatDistance(instruction.distance)}</small>
-                        </div>
-                    </div>
+                // Get direction icon
+                const icon = getDirectionIcon(instruction.type);
+                
+                // Format distance
+                const distance = instruction.distance ? 
+                    (instruction.distance > 1000 ? 
+                        `${(instruction.distance / 1000).toFixed(1)} km` : 
+                        `${Math.round(instruction.distance)} m`) : 
+                    '';
+                
+                item.innerHTML = `
+                    <div class="instruction-icon">${icon}</div>
+                    <div class="instruction-text">${instruction.text}</div>
+                    <div class="instruction-distance">${distance}</div>
                 `;
                 
-                // Add click event to highlight the instruction on map
-                li.addEventListener('click', function() {
-                    // Highlight selected instruction
-                    const selected = document.querySelector('.list-group-item.active');
-                    if (selected) selected.classList.remove('active');
-                    li.classList.add('active');
-                    
-                    // Update current instruction index
-                    currentInstructionIndex = parseInt(li.getAttribute('data-index'));
-                    updateCurrentInstruction();
-                    
-                    // Pan map to the instruction location if coordinates available
-                    if (instruction.coord) {
-                        map.panTo([instruction.coord.lat, instruction.coord.lng]);
-                    }
-                });
-                
-                directionsList.appendChild(li);
+                container.appendChild(item);
             });
-            
-            // Show navigation controls
-            document.getElementById('navigation-controls').style.display = 'block';
-            updateCurrentInstruction();
         }
         
-        // Update current instruction display
-        function updateCurrentInstruction() {
-            if (currentInstructions.length === 0) return;
-            
-            // Update step counter
-            const stepIndicator = document.getElementById('current-step');
-            stepIndicator.textContent = `Step ${currentInstructionIndex + 1}/${currentInstructions.length}`;
-            
-            // Update instruction text
-            const instructionDisplay = document.getElementById('current-instruction');
-            const instruction = currentInstructions[currentInstructionIndex];
-            instructionDisplay.innerHTML = `<i class="bi bi-info-circle me-1"></i> ${instruction.text} <small class="text-muted">(${formatDistance(instruction.distance)})</small>`;
-            
-            // Highlight current instruction in list
-            const directionsList = document.getElementById('directions-list');
-            const items = directionsList.querySelectorAll('.list-group-item');
-            items.forEach(item => item.classList.remove('active'));
-            
-            const currentItem = directionsList.querySelector(`[data-index="${currentInstructionIndex}"]`);
-            if (currentItem) {
-                currentItem.classList.add('active');
-                currentItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Function to get appropriate icon for direction
+        function getDirectionIcon(type) {
+            switch (type) {
+                case 'StartAt':
+                    return '<i class="bi bi-signpost-fill"></i>';
+                case 'WaypointReached':
+                case 'DestinationReached':  
+                    return '<i class="bi bi-geo-alt-fill"></i>';
+                case 'TurnRight':
+                    return '<i class="bi bi-arrow-right"></i>';
+                case 'TurnLeft':
+                    return '<i class="bi bi-arrow-left"></i>';
+                case 'TurnSharpRight':
+                    return '<i class="bi bi-arrow-90deg-right"></i>';
+                case 'TurnSharpLeft':
+                    return '<i class="bi bi-arrow-90deg-left"></i>';
+                case 'TurnSlightRight':
+                    return '<i class="bi bi-arrow-up-right"></i>';
+                case 'TurnSlightLeft':
+                    return '<i class="bi bi-arrow-up-left"></i>';
+                case 'GoStraight':
+                    return '<i class="bi bi-arrow-up"></i>';
+                default:
+                    return '<i class="bi bi-arrow-up"></i>';
             }
-            
-            // Update navigation button states
-            document.getElementById('prev-instruction').disabled = currentInstructionIndex <= 0;
-            document.getElementById('next-instruction').disabled = currentInstructionIndex >= currentInstructions.length - 1;
         }
         
-        // Clear destination
+        // Clear destination with updated function to clear instructions
         function clearDestination() {
             if (destinationMarker) {
                 map.removeLayer(destinationMarker);
@@ -1180,51 +1120,69 @@
             
             document.getElementById('destinationInfo').style.display = 'none';
             document.getElementById('clearDestination').style.display = 'none';
-            document.getElementById('toggleDirections').style.display = 'none';
-            document.getElementById('directions-panel').style.display = 'none';
-            document.getElementById('navigation-controls').style.display = 'none';
-            
-            // Clear instructions
-            currentInstructions = [];
-            document.getElementById('directions-list').innerHTML = '';
+            document.getElementById('route-instructions-container').style.display = 'none';
         }
+
+        // Set destination button
+        document.getElementById('setDestination').addEventListener('click', function() {
+            const destinationModal = new bootstrap.Modal(document.getElementById('setDestinationModal'));
+            destinationModal.show();
+        });
         
-        // Toggle directions panel
-        document.getElementById('toggleDirections').addEventListener('click', function() {
-            const directionsPanel = document.getElementById('directions-panel');
-            if (directionsPanel.style.display === 'none' || !directionsPanel.style.display) {
-                directionsPanel.style.display = 'block';
-                this.innerHTML = '<i class="bi bi-signpost-2"></i> Hide Directions';
+        // Clear destination button
+        document.getElementById('clearDestination').addEventListener('click', clearDestination);
+        
+        // Save destination
+        document.getElementById('saveDestination').addEventListener('click', function() {
+            const address = document.getElementById('destinationAddress').value;
+            const type = document.getElementById('destinationType').value;
+            
+            if (!address) {
+                alert('Please enter a destination address');
+                return;
+            }
+            
+            // In a real app, you would use a geocoding service to convert address to coordinates
+            // For this demo, we'll set a random nearby location
+            if (currentLocationMarker) {
+                const currentPos = currentLocationMarker.getLatLng();
+                // Add some random offset to simulate a nearby location
+                const lat = currentPos.lat + (Math.random() - 0.5) * 0.01;
+                const lng = currentPos.lng + (Math.random() - 0.5) * 0.01;
+                
+                // Set the destination with the entered address as the name
+                setDestination(lat, lng, address);
+                
+                // Close the modal
+                bootstrap.Modal.getInstance(document.getElementById('setDestinationModal')).hide();
             } else {
-                directionsPanel.style.display = 'none';
-                this.innerHTML = '<i class="bi bi-signpost-2"></i> Show Directions';
+                alert('Your current location is not available. Please enable location sharing first.');
             }
         });
-        
-        // Close directions panel
-        document.getElementById('closeDirections').addEventListener('click', function() {
-            document.getElementById('directions-panel').style.display = 'none';
-            document.getElementById('toggleDirections').innerHTML = '<i class="bi bi-signpost-2"></i> Show Directions';
-        });
-        
-        // Navigation controls
-        document.getElementById('prev-instruction').addEventListener('click', function() {
-            if (currentInstructionIndex > 0) {
-                currentInstructionIndex--;
-                updateCurrentInstruction();
-            }
-        });
-        
-        document.getElementById('next-instruction').addEventListener('click', function() {
-            if (currentInstructionIndex < currentInstructions.length - 1) {
-                currentInstructionIndex++;
-                updateCurrentInstruction();
-            }
-        });
-        
+
         // Initialize page
         window.addEventListener('load', function() {
             // Start tracking if active
             if (document.getElementById('statusToggle').checked) {
                 startTracking();
             }
+
+            // Add map click event to quickly set destination
+            map.on('click', function(e) {
+                if (currentLocationMarker) {
+                    const confirmation = confirm('Set this location as your destination?');
+                    if (confirmation) {
+                        setDestination(e.latlng.lat, e.latlng.lng, 'Selected Location');
+                    }
+                }
+            });
+
+            // Initialize tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        });
+    </script>
+</body>
+</html>
